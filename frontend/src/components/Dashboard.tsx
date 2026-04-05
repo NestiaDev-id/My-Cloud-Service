@@ -43,6 +43,7 @@ import { useToast } from './Toast';
 
 interface DashboardProps {
   activeAccount: Account;
+  mainAccount: Account | null;
   accounts: Account[];
   onLogout: () => void;
   onSwitchAccount: (id: string) => void;
@@ -57,7 +58,7 @@ const FILE_ICONS: Record<FileType, React.ReactNode> = {
   other: <FileText className="w-5 h-5 text-gray-400" />,
 };
 
-export default function Dashboard({ activeAccount, accounts, onLogout, onSwitchAccount }: DashboardProps) {
+export default function Dashboard({ activeAccount, mainAccount, accounts, onLogout, onSwitchAccount }: DashboardProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [activeTab, setActiveTab] = useState<'drive' | 'monitoring' | 'trash'>('drive');
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,19 +91,25 @@ export default function Dashboard({ activeAccount, accounts, onLogout, onSwitchA
   const [newName, setNewName] = useState('');
   const { showToast } = useToast();
 
-  // Mock initial files
+  const { totalUsed, totalCapacity } = useMemo(() => {
+    return accounts.reduce((acc, current) => ({
+      totalUsed: acc.totalUsed + current.usedStorage,
+      totalCapacity: acc.totalCapacity + current.totalStorage
+    }), { totalUsed: 0, totalCapacity: 0 });
+  }, [accounts]);
+
+  // Mock initial files from multiple accounts
   const [files, setFiles] = useState<CloudFile[]>([
-    { id: '1', name: 'Project Roadmap.pdf', size: 2400000, type: 'pdf', lastModified: '2024-03-20T10:30:00Z', ownerId: activeAccount.id, thumbnailUrl: 'https://picsum.photos/seed/pdf/400/400' },
-    { id: '2', name: 'Design Assets', size: 0, type: 'folder', lastModified: '2024-03-19T15:45:00Z', ownerId: activeAccount.id, itemCount: 24 },
-    { id: '3', name: 'Vacation Photos', size: 0, type: 'folder', lastModified: '2024-03-18T09:12:00Z', ownerId: activeAccount.id, itemCount: 156 },
-    { id: '4', name: 'Budget_2024.xlsx', size: 1200000, type: 'doc', lastModified: '2024-03-21T14:20:00Z', ownerId: activeAccount.id, thumbnailUrl: 'https://picsum.photos/seed/doc/400/400' },
-    { id: '5', name: 'profile-pic.jpg', size: 850000, type: 'image', lastModified: '2024-03-15T11:00:00Z', ownerId: activeAccount.id, thumbnailUrl: 'https://picsum.photos/seed/profile/400/400' },
-    { id: '6', name: 'source-code.zip', size: 15600000, type: 'archive', lastModified: '2024-03-22T16:40:00Z', ownerId: activeAccount.id },
-    // Nested files in 'Design Assets' (id: '2')
-    { id: '7', name: 'Logo_Final.png', size: 450000, type: 'image', lastModified: '2024-03-23T10:00:00Z', ownerId: activeAccount.id, parentId: '2', thumbnailUrl: 'https://picsum.photos/seed/logo/400/400' },
-    { id: '8', name: 'Brand_Guidelines.pdf', size: 5600000, type: 'pdf', lastModified: '2024-03-23T11:30:00Z', ownerId: activeAccount.id, parentId: '2', thumbnailUrl: 'https://picsum.photos/seed/brand/400/400' },
-    // Nested files in 'Vacation Photos' (id: '3')
-    { id: '9', name: 'Beach.jpg', size: 1200000, type: 'image', lastModified: '2024-03-24T14:00:00Z', ownerId: activeAccount.id, parentId: '3', thumbnailUrl: 'https://picsum.photos/seed/beach/400/400' },
+    { id: '1', name: 'Project Roadmap.pdf', size: 2400000, type: 'pdf', lastModified: '2024-03-20T10:30:00Z', ownerId: 'acc_a', thumbnailUrl: 'https://picsum.photos/seed/pdf/400/400' },
+    { id: '2', name: 'Design Assets', size: 0, type: 'folder', lastModified: '2024-03-19T15:45:00Z', ownerId: 'acc_a', itemCount: 24 },
+    { id: '3', name: 'Vacation Photos', size: 0, type: 'folder', lastModified: '2024-03-18T09:12:00Z', ownerId: 'acc_b', itemCount: 156 },
+    { id: '4', name: 'Budget_2024.xlsx', size: 1200000, type: 'doc', lastModified: '2024-03-21T14:20:00Z', ownerId: 'acc_b', thumbnailUrl: 'https://picsum.photos/seed/doc/400/400' },
+    { id: '5', name: 'profile-pic.jpg', size: 850000, type: 'image', lastModified: '2024-03-15T11:00:00Z', ownerId: 'acc_c', thumbnailUrl: 'https://picsum.photos/seed/profile/400/400' },
+    { id: '6', name: 'source-code.zip', size: 15600000, type: 'archive', lastModified: '2024-03-22T16:40:00Z', ownerId: 'acc_c' },
+    // Nested files
+    { id: '7', name: 'Logo_Final.png', size: 450000, type: 'image', lastModified: '2024-03-23T10:00:00Z', ownerId: 'acc_a', parentId: '2', thumbnailUrl: 'https://picsum.photos/seed/logo/400/400' },
+    { id: '8', name: 'Brand_Guidelines.pdf', size: 5600000, type: 'pdf', lastModified: '2024-03-23T11:30:00Z', ownerId: 'acc_a', parentId: '2', thumbnailUrl: 'https://picsum.photos/seed/brand/400/400' },
+    { id: '9', name: 'Beach.jpg', size: 1200000, type: 'image', lastModified: '2024-03-24T14:00:00Z', ownerId: 'acc_b', parentId: '3', thumbnailUrl: 'https://picsum.photos/seed/beach/400/400' },
   ]);
 
   const handleUpload = (selectedFiles: FileList | null) => {
@@ -383,13 +390,16 @@ export default function Dashboard({ activeAccount, accounts, onLogout, onSwitchA
         <div className="p-4 border-t border-gray-100">
           <div className="bg-gray-50 rounded-2xl p-4">
             <div className="flex justify-between text-xs font-medium text-gray-500 mb-2">
-              <span>Storage</span>
-              <span>75% used</span>
+              <span>Combined Storage</span>
+              <span>{Math.round((totalUsed / totalCapacity) * 100)}% used</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2">
-              <div className="bg-blue-600 h-1.5 rounded-full w-3/4"></div>
+              <div 
+                className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" 
+                style={{ width: `${(totalUsed / totalCapacity) * 100}%` }}
+              />
             </div>
-            <p className="text-[10px] text-gray-400">11.2 GB of 15 GB used</p>
+            <p className="text-[10px] text-gray-400">{formatSize(totalUsed)} of {formatSize(totalCapacity)} used</p>
           </div>
         </div>
       </aside>
@@ -430,8 +440,12 @@ export default function Dashboard({ activeAccount, accounts, onLogout, onSwitchA
                 onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
                 className="flex items-center gap-2 p-1.5 hover:bg-gray-100 rounded-full transition-all"
               >
-                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm", activeAccount.color)}>
-                  {activeAccount.name[0]}
+                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm", mainAccount?.color || activeAccount.color)}>
+                  {(mainAccount?.avatar || activeAccount.name[0]).substring(0, 2)}
+                </div>
+                <div className="hidden lg:block text-left mr-2">
+                  <p className="text-xs font-bold text-gray-900 leading-none">{mainAccount?.name || activeAccount.name}</p>
+                  <p className="text-[10px] text-gray-500 leading-none mt-1">Main Admin</p>
                 </div>
                 <ChevronDown className={cn("w-4 h-4 text-gray-500 transition-transform", isAccountMenuOpen && "rotate-180")} />
               </button>
@@ -447,11 +461,14 @@ export default function Dashboard({ activeAccount, accounts, onLogout, onSwitchA
                       className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 py-4 z-30"
                     >
                       <div className="px-6 py-4 border-b border-gray-50 text-center">
-                        <div className={cn("w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3 shadow-lg", activeAccount.color)}>
-                          {activeAccount.name[0]}
+                        <div className={cn("w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3 shadow-lg", mainAccount?.color || activeAccount.color)}>
+                          {(mainAccount?.avatar || activeAccount.name[0]).substring(0, 2)}
                         </div>
-                        <h3 className="font-bold text-gray-900">{activeAccount.name}</h3>
-                        <p className="text-sm text-gray-500">{activeAccount.email}</p>
+                        <h3 className="font-bold text-gray-900">{mainAccount?.name || activeAccount.name}</h3>
+                        <p className="text-sm text-gray-500">{mainAccount?.email || activeAccount.email}</p>
+                        <div className="mt-2 inline-block px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                          Website Root
+                        </div>
                       </div>
                       
                       <div className="py-2">

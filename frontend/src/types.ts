@@ -23,9 +23,11 @@ export interface Account {
   lastCheck: string;
   usedStorage: number; // in bytes
   totalStorage: number; // in bytes
+  isMainAccount?: boolean;
 }
 
 export interface UserSession {
-  parentAuthenticated: boolean;
-  activeAccountId: string | null;
+  parentAuthenticated: boolean; // Main website authentication
+  activeAccountId: string | null; // Storage account being viewed
+  mainAccountEmail: string | null;
 }
