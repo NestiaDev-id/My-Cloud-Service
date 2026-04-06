@@ -59,7 +59,7 @@ const MAIN_ACCOUNT: Account = {
   isMainAccount: true,
 };
 
-import React, { Component, type ReactNode } from "react";
+import { Component, type ReactNode } from "react";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: any }> {
   constructor(props: { children: ReactNode }) {

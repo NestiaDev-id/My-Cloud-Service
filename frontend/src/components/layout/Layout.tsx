@@ -1,6 +1,6 @@
-import React, { useMemo, useCallback, useEffect, Component, type ReactNode } from "react";
+import { useMemo, useCallback, useEffect, Component, type ReactNode } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence } from "motion/react";
 
 import { Sidebar, Header } from "@/components/layout";
 import { FileDetails, BulkActions, ContextMenu } from "@/components/files";
@@ -182,11 +182,11 @@ export default function Layout({
     }
   }, [renamingFileId, newName, renameFile, showToast, closeRenameModal]);
 
-  const handleCreateFolderSubmit = useCallback(() => {
-    createFolder(newName, accounts);
+  const handleCreateFolderSubmit = useCallback(async () => {
+    await createFolder(newName);
     showToast(`Folder "${newName}" created`, "success");
     closeCreateFolderModal();
-  }, [createFolder, newName, accounts, showToast, closeCreateFolderModal]);
+  }, [createFolder, newName, showToast, closeCreateFolderModal]);
 
   const handleDownload = useCallback(
     (file: CloudFile) => {
@@ -263,12 +263,11 @@ export default function Layout({
 
   const handleStartUpload = useCallback(() => {
     startUpload(
-      accounts,
       currentFolderId,
       (newFile) => addFiles([newFile]),
       (fileName) => showToast(`${fileName} uploaded successfully!`, "success"),
     );
-  }, [accounts, currentFolderId, addFiles, showToast, startUpload]);
+  }, [currentFolderId, addFiles, showToast, startUpload]);
 
   return (
     <div className="flex h-screen bg-[#f8f9fa] overflow-hidden font-sans">

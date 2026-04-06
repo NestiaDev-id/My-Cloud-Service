@@ -1,5 +1,7 @@
 import { create } from "zustand";
-import type { CloudFile, Account } from "@/types";
+import type { CloudFile } from "@/types";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 interface UploadingFile {
   id: string;
@@ -11,6 +13,8 @@ interface UploadingFile {
   estimatedTimeRemaining: number;
   previewUrl?: string;
   fileRef: File;
+  uploadUrl?: string;
+  accountId?: string;
 }
 
 interface UploadState {
@@ -25,11 +29,10 @@ interface UploadState {
   clearPendingFiles: () => void;
   clearUploadingFiles: () => void;
   startUpload: (
-    accounts: Account[],
     currentFolderId: string | null,
     onFileAdded: (file: CloudFile) => void,
-    onComplete: (fileName: string) => void,
-  ) => void;
+    onComplete: (fileName: string) => void
+  ) => Promise<void>;
 
   // Drag handlers
   onDragOver: (e: React.DragEvent) => void;
@@ -61,83 +64,121 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
   clearUploadingFiles: () => set({ uploadingFiles: [] }),
 
-  startUpload: (accounts, currentFolderId, onFileAdded, onComplete) => {
+  startUpload: async (currentFolderId, onFileAdded, onComplete) => {
     const { pendingFiles } = get();
     if (pendingFiles.length === 0) return;
 
-    const filesToUpload: UploadingFile[] = pendingFiles.map((file) => ({
-      id: Math.random().toString(36).substring(2, 9),
-      name: file.name,
-      size: file.size,
-      progress: 0,
-      status: "uploading" as const,
-      startTime: Date.now(),
-      estimatedTimeRemaining: 0,
-      previewUrl: file.type.startsWith("image/")
-        ? URL.createObjectURL(file)
-        : undefined,
-      fileRef: file,
-    }));
+    // Process each file
+    for (const file of pendingFiles) {
+      const uploadingFile: UploadingFile = {
+        id: Math.random().toString(36).substring(2, 9),
+        name: file.name,
+        size: file.size,
+        progress: 0,
+        status: "uploading",
+        startTime: Date.now(),
+        estimatedTimeRemaining: 0,
+        previewUrl: file.type.startsWith("image/")
+          ? URL.createObjectURL(file)
+          : undefined,
+        fileRef: file,
+      };
 
-    set((state) => ({
-      uploadingFiles: [...state.uploadingFiles, ...filesToUpload],
-      pendingFiles: [],
-    }));
+      set((state) => ({
+        uploadingFiles: [...state.uploadingFiles, uploadingFile],
+        pendingFiles: state.pendingFiles.filter((f) => f !== file),
+      }));
 
-    filesToUpload.forEach((uploadingFile) => {
-      let progress = 0;
-      const totalSize = uploadingFile.size;
-      const uploadSpeed = Math.random() * 500000 + 200000;
+      try {
+        // 1. Initialize upload with backend
+        const initResponse = await fetch(`${API_URL}/api/upload/init`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+            fileSize: file.size,
+            parentId: currentFolderId,
+          }),
+        });
 
-      const interval = setInterval(() => {
-        progress += uploadSpeed / 10;
-        const percent = Math.min(Math.round((progress / totalSize) * 100), 100);
+        if (!initResponse.ok) {
+          throw new Error("Failed to initialize upload");
+        }
 
-        const elapsedTime = (Date.now() - uploadingFile.startTime) / 1000;
-        const currentSpeed = progress / elapsedTime;
-        const remainingSize = totalSize - progress;
-        const eta = Math.max(0, Math.round(remainingSize / currentSpeed));
+        const { uploadUrl, accountId } = await initResponse.json();
 
+        // Update with upload URL
         set((state) => ({
           uploadingFiles: state.uploadingFiles.map((f) =>
-            f.id === uploadingFile.id
-              ? {
-                  ...f,
-                  progress: percent,
-                  estimatedTimeRemaining: eta,
-                  status: percent === 100 ? "completed" : "uploading",
-                }
-              : f,
+            f.id === uploadingFile.id ? { ...f, uploadUrl, accountId } : f
           ),
         }));
 
-        if (percent === 100) {
-          clearInterval(interval);
+        // 2. Upload directly to Google Drive using resumable upload URL
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+            "Content-Length": file.size.toString(),
+          },
+          body: file,
+        });
 
-          const newFile: CloudFile = {
-            id: uploadingFile.id,
-            name: uploadingFile.name,
-            size: uploadingFile.size,
-            type: uploadingFile.fileRef.type.includes("image")
-              ? "image"
-              : uploadingFile.fileRef.type.includes("pdf")
-                ? "pdf"
-                : "other",
-            lastModified: new Date().toISOString(),
-            ownerId: accounts[Math.floor(Math.random() * accounts.length)].id,
-            parentId: currentFolderId || undefined,
-            thumbnailUrl:
-              uploadingFile.previewUrl ||
-              (uploadingFile.fileRef.type.includes("image")
-                ? `https://picsum.photos/seed/${Math.random()}/400/400`
-                : undefined),
-          };
-
-          onFileAdded(newFile);
-          onComplete(uploadingFile.name);
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file");
         }
-      }, 100);
-    });
+
+        const uploadedFile = await uploadResponse.json();
+
+        // 3. Notify backend upload is complete
+        await fetch(`${API_URL}/api/upload/complete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            accountId,
+            fileSize: file.size,
+          }),
+        });
+
+        // Update progress to 100%
+        set((state) => ({
+          uploadingFiles: state.uploadingFiles.map((f) =>
+            f.id === uploadingFile.id
+              ? { ...f, progress: 100, status: "completed" }
+              : f
+          ),
+        }));
+
+        // Create CloudFile from response
+        const newFile: CloudFile = {
+          id: `${accountId}:${uploadedFile.id}`,
+          name: uploadedFile.name,
+          size: parseInt(uploadedFile.size || "0"),
+          type: file.type.includes("image")
+            ? "image"
+            : file.type.includes("pdf")
+              ? "pdf"
+              : "other",
+          lastModified: new Date().toISOString(),
+          ownerId: accountId,
+          parentId: currentFolderId || undefined,
+          thumbnailUrl: uploadedFile.thumbnailLink || uploadingFile.previewUrl,
+        };
+
+        onFileAdded(newFile);
+        onComplete(file.name);
+      } catch (error) {
+        console.error("Upload error:", error);
+        set((state) => ({
+          uploadingFiles: state.uploadingFiles.map((f) =>
+            f.id === uploadingFile.id ? { ...f, status: "error" } : f
+          ),
+        }));
+      }
+    }
   },
 
   onDragOver: (e) => {

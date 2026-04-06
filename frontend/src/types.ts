@@ -1,10 +1,12 @@
-export type FileType = 'folder' | 'pdf' | 'image' | 'doc' | 'archive' | 'other';
+export type FileType = "folder" | "pdf" | "image" | "doc" | "archive" | "other";
 
 export interface CloudFile {
   id: string;
+  driveFileId?: string;
   name: string;
   size: number;
   type: FileType;
+  mimeType?: string;
   lastModified: string;
   ownerId: string;
   itemCount?: number;
@@ -12,6 +14,7 @@ export interface CloudFile {
   thumbnailUrl?: string;
   isDeleted?: boolean;
   isShared?: boolean;
+  webViewLink?: string;
 }
 
 export interface Account {
@@ -20,11 +23,12 @@ export interface Account {
   email: string;
   avatar: string;
   color: string;
-  status: 'connected' | 'disconnected';
+  status: "connected" | "disconnected" | "error";
   lastCheck: string;
   usedStorage: number; // in bytes
   totalStorage: number; // in bytes
   isMainAccount?: boolean;
+  isActive?: boolean;
 }
 
 export interface UserSession {
