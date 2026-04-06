@@ -32,10 +32,10 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
         <div
           className={cn(
             "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm",
-            displayAccount.color,
+            displayAccount?.color || "bg-gray-500",
           )}
         >
-          {(displayAccount.avatar || displayAccount.name[0]).substring(0, 2)}
+          {(displayAccount?.avatar || displayAccount?.name?.[0] || "?").substring(0, 2)}
         </div>
         <div className="hidden lg:block text-left mr-2">
           <p className="text-xs font-bold text-gray-900 leading-none">
@@ -65,10 +65,10 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
                 <div
                   className={cn(
                     "w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3 shadow-lg",
-                    displayAccount.color,
+                    displayAccount?.color || "bg-gray-500",
                   )}
                 >
-                  {(displayAccount.avatar || displayAccount.name[0]).substring(
+                  {(displayAccount?.avatar || displayAccount?.name?.[0] || "?").substring(
                     0,
                     2,
                   )}

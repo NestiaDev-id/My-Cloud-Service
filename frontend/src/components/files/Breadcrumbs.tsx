@@ -7,12 +7,14 @@ interface BreadcrumbsProps {
   breadcrumbs: CloudFile[];
   currentFolderId: string | null;
   onNavigate: (folderId: string | null) => void;
+  rootLabel?: string;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   breadcrumbs,
   currentFolderId,
   onNavigate,
+  rootLabel,
 }) => {
   return (
     <div className="flex items-center gap-2 text-sm text-gray-500 overflow-x-auto whitespace-nowrap pb-2 scrollbar-hide">
@@ -26,7 +28,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
         )}
       >
         <HardDrive className="w-4 h-4" />
-        My Drive
+        {rootLabel || "My Drive"}
       </button>
       {breadcrumbs.map((crumb, index) => (
         <React.Fragment key={crumb.id}>

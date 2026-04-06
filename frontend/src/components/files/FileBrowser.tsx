@@ -128,6 +128,7 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({
           breadcrumbs={breadcrumbs}
           currentFolderId={currentFolderId}
           onNavigate={onNavigate}
+          rootLabel={getTitle()}
         />
 
         <div className="flex items-center justify-between">

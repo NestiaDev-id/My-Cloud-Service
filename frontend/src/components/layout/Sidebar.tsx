@@ -1,4 +1,4 @@
-import React from "react";
+import { NavLink } from "react-router-dom";
 import {
   Plus,
   HardDrive,
@@ -11,31 +11,26 @@ import {
 import { cn } from "@/lib/utils";
 import { formatSize } from "@/utils";
 
-type TabId = "drive" | "monitoring" | "recent" | "shared" | "trash";
-
 interface SidebarProps {
-  activeTab: TabId;
-  onTabChange: (tab: TabId) => void;
   onNewClick: () => void;
   totalUsed: number;
   totalCapacity: number;
 }
 
-const NAV_ITEMS: { id: TabId; icon: React.ReactNode; label: string }[] = [
-  { id: "drive", icon: <HardDrive className="w-5 h-5" />, label: "My Drive" },
+const NAV_ITEMS = [
+  { id: "drive", to: "/drive", icon: <HardDrive className="w-5 h-5" />, label: "My Drive" },
   {
     id: "monitoring",
+    to: "/monitoring",
     icon: <Activity className="w-5 h-5" />,
     label: "Monitoring",
   },
-  { id: "recent", icon: <Clock className="w-5 h-5" />, label: "Recent" },
-  { id: "shared", icon: <Share2 className="w-5 h-5" />, label: "Shared" },
-  { id: "trash", icon: <Trash2 className="w-5 h-5" />, label: "Trash" },
+  { id: "recent", to: "/recent", icon: <Clock className="w-5 h-5" />, label: "Recent" },
+  { id: "shared", to: "/shared", icon: <Share2 className="w-5 h-5" />, label: "Shared" },
+  { id: "trash", to: "/trash", icon: <Trash2 className="w-5 h-5" />, label: "Trash" },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  activeTab,
-  onTabChange,
   onNewClick,
   totalUsed,
   totalCapacity,
@@ -65,19 +60,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <nav className="flex-1 px-2 space-y-1">
         {NAV_ITEMS.map((item) => (
-          <button
+          <NavLink
             key={item.id}
-            onClick={() => onTabChange(item.id)}
-            className={cn(
+            to={item.to}
+            className={({ isActive }) => cn(
               "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
-              activeTab === item.id
+              isActive
                 ? "bg-blue-50 text-blue-700"
                 : "text-gray-600 hover:bg-gray-100",
             )}
           >
             {item.icon}
             {item.label}
-          </button>
+          </NavLink>
         ))}
       </nav>
 
