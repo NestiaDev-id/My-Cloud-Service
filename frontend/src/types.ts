@@ -11,6 +11,7 @@ export interface CloudFile {
   parentId?: string;
   thumbnailUrl?: string;
   isDeleted?: boolean;
+  isShared?: boolean;
 }
 
 export interface Account {

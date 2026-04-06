@@ -34,7 +34,8 @@ import {
   AlertCircle,
   Upload,
   X,
-  File
+  File,
+  LogIn
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -46,7 +47,6 @@ interface DashboardProps {
   mainAccount: Account | null;
   accounts: Account[];
   onLogout: () => void;
-  onSwitchAccount: (id: string) => void;
 }
 
 const FILE_ICONS: Record<FileType, React.ReactNode> = {
@@ -58,15 +58,16 @@ const FILE_ICONS: Record<FileType, React.ReactNode> = {
   other: <FileText className="w-5 h-5 text-gray-400" />,
 };
 
-export default function Dashboard({ activeAccount, mainAccount, accounts, onLogout, onSwitchAccount }: DashboardProps) {
+export default function Dashboard({ activeAccount, mainAccount, accounts, onLogout }: DashboardProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'drive' | 'monitoring' | 'trash'>('drive');
+  const [activeTab, setActiveTab] = useState<'drive' | 'monitoring' | 'recent' | 'shared' | 'trash'>('drive');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [sortField, setSortField] = useState<'name' | 'size' | 'lastModified'>('lastModified');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [uploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
@@ -76,6 +77,9 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '' });
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<{
     id: string;
@@ -100,11 +104,11 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
 
   // Mock initial files from multiple accounts
   const [files, setFiles] = useState<CloudFile[]>([
-    { id: '1', name: 'Project Roadmap.pdf', size: 2400000, type: 'pdf', lastModified: '2024-03-20T10:30:00Z', ownerId: 'acc_a', thumbnailUrl: 'https://picsum.photos/seed/pdf/400/400' },
+    { id: '1', name: 'Project Roadmap.pdf', size: 2400000, type: 'pdf', lastModified: '2024-03-20T10:30:00Z', ownerId: 'acc_a', thumbnailUrl: 'https://picsum.photos/seed/pdf/400/400', isShared: true },
     { id: '2', name: 'Design Assets', size: 0, type: 'folder', lastModified: '2024-03-19T15:45:00Z', ownerId: 'acc_a', itemCount: 24 },
     { id: '3', name: 'Vacation Photos', size: 0, type: 'folder', lastModified: '2024-03-18T09:12:00Z', ownerId: 'acc_b', itemCount: 156 },
-    { id: '4', name: 'Budget_2024.xlsx', size: 1200000, type: 'doc', lastModified: '2024-03-21T14:20:00Z', ownerId: 'acc_b', thumbnailUrl: 'https://picsum.photos/seed/doc/400/400' },
-    { id: '5', name: 'profile-pic.jpg', size: 850000, type: 'image', lastModified: '2024-03-15T11:00:00Z', ownerId: 'acc_c', thumbnailUrl: 'https://picsum.photos/seed/profile/400/400' },
+    { id: '4', name: 'Budget_2024.xlsx', size: 1200000, type: 'doc', lastModified: '2024-03-21T14:20:00Z', ownerId: 'acc_b', thumbnailUrl: 'https://picsum.photos/seed/doc/400/400', isShared: true },
+    { id: '5', name: 'profile-pic.jpg', size: 850000, type: 'image', lastModified: '2024-03-15T11:00:00Z', ownerId: 'acc_c', thumbnailUrl: 'https://picsum.photos/seed/profile/400/400', isShared: true },
     { id: '6', name: 'source-code.zip', size: 15600000, type: 'archive', lastModified: '2024-03-22T16:40:00Z', ownerId: 'acc_c' },
     // Nested files
     { id: '7', name: 'Logo_Final.png', size: 450000, type: 'image', lastModified: '2024-03-23T10:00:00Z', ownerId: 'acc_a', parentId: '2', thumbnailUrl: 'https://picsum.photos/seed/logo/400/400' },
@@ -167,7 +171,7 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
             size: uploadingFile.size,
             type: uploadingFile.fileRef.type.includes('image') ? 'image' : uploadingFile.fileRef.type.includes('pdf') ? 'pdf' : 'other',
             lastModified: new Date().toISOString(),
-            ownerId: activeAccount.id,
+            ownerId: accounts[Math.floor(Math.random() * accounts.length)].id,
             parentId: currentFolderId || undefined,
             thumbnailUrl: uploadingFile.previewUrl || (uploadingFile.fileRef.type.includes('image') ? `https://picsum.photos/seed/${Math.random()}/400/400` : undefined),
           };
@@ -200,9 +204,21 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
 
   const processedFiles = useMemo(() => {
     let result = files.filter(f => 
-      f.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
-      (activeTab === 'trash' ? f.isDeleted : (!f.isDeleted && f.parentId === (currentFolderId || undefined)))
+      f.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    if (activeTab === 'trash') {
+      result = result.filter(f => f.isDeleted);
+    } else if (activeTab === 'recent') {
+      result = result.filter(f => !f.isDeleted && f.type !== 'folder');
+      result.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+      return result.slice(0, 20); // Top 20 recent non-folder files
+    } else if (activeTab === 'shared') {
+      result = result.filter(f => !f.isDeleted && f.isShared);
+    } else {
+      // activeTab === 'drive'
+      result = result.filter(f => !f.isDeleted && f.parentId === (currentFolderId || undefined));
+    }
     
     result.sort((a, b) => {
       let comparison = 0;
@@ -302,7 +318,7 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
       size: 0,
       type: 'folder',
       lastModified: new Date().toISOString(),
-      ownerId: activeAccount.id,
+      ownerId: accounts[Math.floor(Math.random() * accounts.length)].id,
       parentId: currentFolderId || undefined,
       itemCount: 0
     };
@@ -370,10 +386,12 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
             <button
               key={item.id}
               onClick={() => {
-                if (item.id === 'drive' || item.id === 'monitoring' || item.id === 'trash') {
+                if (item.id !== 'monitoring') {
                   setActiveTab(item.id as any);
                   setCurrentFolderId(null);
                   setSelectedFileIds([]);
+                } else {
+                  setActiveTab('monitoring');
                 }
               }}
               className={cn(
@@ -445,7 +463,7 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
                 </div>
                 <div className="hidden lg:block text-left mr-2">
                   <p className="text-xs font-bold text-gray-900 leading-none">{mainAccount?.name || activeAccount.name}</p>
-                  <p className="text-[10px] text-gray-500 leading-none mt-1">Main Admin</p>
+                  <p className="text-[10px] text-gray-500 leading-none mt-1">Admin</p>
                 </div>
                 <ChevronDown className={cn("w-4 h-4 text-gray-500 transition-transform", isAccountMenuOpen && "rotate-180")} />
               </button>
@@ -467,33 +485,10 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
                         <h3 className="font-bold text-gray-900">{mainAccount?.name || activeAccount.name}</h3>
                         <p className="text-sm text-gray-500">{mainAccount?.email || activeAccount.email}</p>
                         <div className="mt-2 inline-block px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-full uppercase tracking-wider">
-                          Website Root
+                          Root Access
                         </div>
                       </div>
                       
-                      <div className="py-2">
-                        <p className="px-6 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Switch Account</p>
-                        {accounts.filter(a => a.id !== activeAccount.id).map(account => (
-                          <button
-                            key={account.id}
-                            onClick={() => {
-                              onSwitchAccount(account.id);
-                              setIsAccountMenuOpen(false);
-                              showToast(`Switched to ${account.name}`, 'success');
-                            }}
-                            className="w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors text-left"
-                          >
-                            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold", account.color)}>
-                              {account.name[0]}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-gray-800 truncate">{account.name}</p>
-                              <p className="text-xs text-gray-500 truncate">{account.email}</p>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-
                       <div className="mt-2 pt-2 border-t border-gray-50 px-2">
                         <button 
                           onClick={() => {
@@ -503,7 +498,7 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors text-sm font-medium"
                         >
                           <LogOut className="w-4 h-4" />
-                          Sign out of all accounts
+                          Sign out
                         </button>
                       </div>
                     </motion.div>
@@ -518,7 +513,7 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
         <div className="flex-1 flex min-h-0 overflow-hidden relative">
           <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
             <AnimatePresence mode="wait">
-              {activeTab === 'drive' || activeTab === 'trash' ? (
+              {activeTab !== 'monitoring' ? (
                 <motion.div
                   key={activeTab}
                   initial={{ opacity: 0, x: -20 }}
@@ -619,7 +614,7 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <h2 className="text-xl font-bold text-gray-900">
-                        {activeTab === 'trash' ? 'Trash' : (currentFolderId ? breadcrumbs[breadcrumbs.length - 1]?.name : "My Drive")}
+                        {activeTab === 'trash' ? 'Trash' : activeTab === 'recent' ? 'Recent Files' : activeTab === 'shared' ? 'Shared with me' : (currentFolderId ? breadcrumbs[breadcrumbs.length - 1]?.name : "My Drive")}
                       </h2>
                       {activeTab === 'trash' && (
                         <button 
@@ -948,16 +943,36 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
                     <h2 className="text-2xl font-bold text-gray-900">Account Monitoring</h2>
                     <p className="text-sm text-gray-500 mt-1">Real-time status of all connected cloud accounts</p>
                   </div>
-                  <button 
-                    onClick={() => {
-                      showToast('Refreshing account statuses...', 'info');
-                      setTimeout(() => showToast('Statuses updated successfully', 'success'), 1500);
-                    }}
-                    className="flex items-center gap-2 bg-white border border-gray-200 px-4 py-2 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    Refresh Status
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => {
+                        showToast('Memulai proses login Google...', 'info');
+                      }}
+                      className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-all shadow-md shadow-blue-200"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Account
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setIsRefreshing(true);
+                        showToast('Refreshing account statuses...', 'info');
+                        setTimeout(() => {
+                          showToast('Statuses updated successfully', 'success');
+                          setIsRefreshing(false);
+                        }, 1500);
+                      }}
+                      className="flex items-center gap-2 bg-white border border-gray-200 px-4 py-2 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
+                    >
+                      <motion.div
+                        animate={isRefreshing ? { rotate: 360 } : { rotate: 0 }}
+                        transition={isRefreshing ? { repeat: Infinity, duration: 1, ease: "linear" } : { duration: 0.5 }}
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </motion.div>
+                      Refresh Status
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid gap-4">
@@ -1013,13 +1028,33 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
                             </>
                           ) : (
                             <>
-                              <div className="flex items-center gap-2 text-red-600 font-bold text-sm">
+                              <button 
+                                onClick={() => showToast(`Menghubungkan kembali ${account.name}...`, 'info')}
+                                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-bold text-sm transition-colors"
+                              >
+                                <LogIn className="w-4 h-4" />
+                                Connect
+                              </button>
+                              <div className="w-1 h-4 bg-gray-200 mx-1" />
+                              <div className="flex items-center gap-2 text-red-600 font-bold text-sm opacity-50">
                                 <XCircle className="w-5 h-5" />
                                 Disconnected
                               </div>
-                              <div className="w-2 h-2 rounded-full bg-red-500" />
                             </>
                           )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => {
+                              setEditingAccount(account);
+                              setEditForm({ name: account.name, email: account.email });
+                              setIsEditModalOpen(true);
+                            }}
+                            className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-blue-600 transition-all"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
                         </div>
 
                         <button 
@@ -1053,7 +1088,7 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
           </AnimatePresence>
         </div>        {/* Details Panel */}
         <AnimatePresence>
-          {selectedFileIds.length > 0 && (activeTab === 'drive' || activeTab === 'trash') && (
+          {selectedFileIds.length > 0 && activeTab !== 'monitoring' && (
             <motion.aside
               initial={{ x: 320, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -1937,6 +1972,98 @@ export default function Dashboard({ activeAccount, mainAccount, accounts, onLogo
             </div>
           )}
         </AnimatePresence>
+
+      <AnimatePresence>
+        {isEditModalOpen && editingAccount && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsEditModalOpen(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
+            />
+            <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 pointer-events-auto"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-900">Edit Akses Akun</h2>
+                  <button 
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Nama Akun (Alias)</label>
+                    <input 
+                      type="text" 
+                      value={editForm.name}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Email</label>
+                    <input 
+                      type="email" 
+                      value={editForm.email}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2 mt-8">
+                    <button 
+                      onClick={() => {
+                        showToast(`Perubahan untuk ${editForm.name} disimpan`, 'success');
+                        setIsEditModalOpen(false);
+                      }}
+                      className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
+                    >
+                      Simpan Perubahan
+                    </button>
+                    
+                    <div className="flex items-center justify-center gap-2 mt-4 text-xs">
+                      {editingAccount.status === 'connected' && (
+                        <>
+                          <button
+                            onClick={() => {
+                              showToast(`Koneksi ${editingAccount.name} diputus.`, 'info');
+                              setIsEditModalOpen(false);
+                            }}
+                            className="text-gray-500 hover:text-amber-600 font-bold px-3 py-2 rounded-lg hover:bg-amber-50 transition-colors"
+                          >
+                            Disconnect
+                          </button>
+                          <span className="text-gray-300">|</span>
+                        </>
+                      )}
+                      <button
+                        onClick={() => {
+                          showToast(`${editingAccount.name} dihapus secara permanen dari sistem.`, 'error');
+                          setIsEditModalOpen(false);
+                        }}
+                        className="text-red-500 hover:text-red-600 font-bold px-3 py-2 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Delete Account
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
       </div>
     </main>
   </div>

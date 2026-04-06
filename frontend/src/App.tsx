@@ -42,7 +42,7 @@ const STORAGE_ACCOUNTS: Account[] = [
 
 const MAIN_ACCOUNT: Account = {
   id: 'main_root',
-  name: 'Main Administrator',
+  name: 'Admin Sistem',
   email: 'admin@cloudservice.com',
   avatar: 'Admin',
   color: 'bg-slate-900',
@@ -75,10 +75,6 @@ export default function App() {
     setSession({ parentAuthenticated: false, activeAccountId: null, mainAccountEmail: null });
   };
 
-  const handleSwitchAccount = (accountId: string) => {
-    setSession(prev => ({ ...prev, activeAccountId: accountId }));
-  };
-
   const activeAccount = STORAGE_ACCOUNTS.find(a => a.id === session.activeAccountId);
   const mainAccount = session.mainAccountEmail === MAIN_ACCOUNT.email ? MAIN_ACCOUNT : null;
 
@@ -97,7 +93,6 @@ export default function App() {
           mainAccount={mainAccount}
           accounts={STORAGE_ACCOUNTS} 
           onLogout={handleLogout}
-          onSwitchAccount={handleSwitchAccount}
         />
       )}
     </ToastProvider>
