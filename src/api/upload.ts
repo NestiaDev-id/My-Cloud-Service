@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { StorageAccount } from "../models/Account.js";
 import { getUploadUrl, getStorageQuota } from "../lib/google.js";
+import { invalidateAccountCache } from "../lib/cache.js";
 
 const app = new Hono();
 
@@ -206,6 +207,9 @@ app.post("/complete", async (c) => {
     account.usedStorage += fileSize || 0;
     account.lastCheck = new Date();
     await account.save();
+
+    // Invalidate cache so new file appears immediately
+    await invalidateAccountCache(accountId);
 
     return c.json({
       success: true,

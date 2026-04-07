@@ -16,7 +16,6 @@ import { FileList } from "./FileList";
 import { FileGrid } from "./FileGrid";
 import { useInfiniteScroll } from "@/hooks";
 import type { CloudFile } from "@/types";
-
 interface FileBrowserProps {
   files: CloudFile[];
   processedFiles: CloudFile[];

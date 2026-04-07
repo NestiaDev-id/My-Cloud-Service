@@ -162,7 +162,7 @@ app.get("/files", async (c) => {
 
         // Check cache (skip if forceRefresh)
         if (!forceRefresh) {
-          const cached = cache.get<{
+          const cached = await cache.get<{
             files: any[];
             nextPageToken: string | null;
             hasMore: boolean;
@@ -192,7 +192,7 @@ app.get("/files", async (c) => {
         });
 
         // Store in cache (raw files, before transform)
-        cache.set(cacheKey, {
+        await cache.set(cacheKey, {
           files: result.files,
           nextPageToken: result.nextPageToken,
           hasMore: result.hasMore,
@@ -324,7 +324,7 @@ app.post("/folders", async (c) => {
     );
 
     // Invalidate cache for parent folder
-    invalidateFolderCache(account._id.toString(), targetParentId || "root");
+    await invalidateFolderCache(account._id.toString(), targetParentId || "root");
 
     return c.json({
       file: transformFile(folder, account._id.toString(), !targetParentId),
@@ -354,7 +354,7 @@ app.patch("/files/:id", async (c) => {
       const updated = await renameFile(account.refreshToken, fileId, body.name);
 
       // Invalidate cache for the folder containing this file
-      invalidateAccountCache(accountId);
+      await invalidateAccountCache(accountId);
 
       return c.json({ file: transformFile(updated, accountId) });
     }
@@ -399,7 +399,7 @@ app.post("/files/:id/move", async (c) => {
     const moved = await moveFile(account.refreshToken, fileId, targetId);
 
     // Invalidate cache for both source and target folders
-    invalidateAccountCache(accountId);
+    await invalidateAccountCache(accountId);
 
     return c.json({ file: transformFile(moved, accountId) });
   } catch (error) {
@@ -425,7 +425,7 @@ app.post("/files/:id/trash", async (c) => {
     await trashFile(account.refreshToken, fileId);
 
     // Invalidate cache
-    invalidateAccountCache(accountId);
+    await invalidateAccountCache(accountId);
 
     return c.json({ success: true });
   } catch (error) {
@@ -451,7 +451,7 @@ app.delete("/files/:id", async (c) => {
     await deleteFile(account.refreshToken, fileId);
 
     // Invalidate cache
-    invalidateAccountCache(accountId);
+    await invalidateAccountCache(accountId);
 
     return c.json({ success: true });
   } catch (error) {
@@ -487,9 +487,9 @@ app.post("/files/bulk-trash", async (c) => {
     );
 
     // Invalidate cache for all affected accounts
-    accountsToInvalidate.forEach((accId) => {
-      invalidateAccountCache(accId);
-    });
+    for (const accId of accountsToInvalidate) {
+      await invalidateAccountCache(accId);
+    }
 
     const succeeded = results
       .filter((r) => r.status === "fulfilled")

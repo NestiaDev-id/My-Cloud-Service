@@ -21,6 +21,7 @@ interface FileDetailsProps {
   selectedFile: CloudFile | undefined;
   files: CloudFile[];
   activeAccount: Account;
+  accounts: Account[];
   isTrashTab: boolean;
   onClose: () => void;
   onRename: (file: CloudFile) => void;
@@ -37,6 +38,7 @@ export const FileDetails: React.FC<FileDetailsProps> = ({
   selectedFile,
   files,
   activeAccount,
+  accounts,
   isTrashTab,
   onClose,
   onRename,
@@ -52,6 +54,8 @@ export const FileDetails: React.FC<FileDetailsProps> = ({
   const totalSize = files
     .filter((f) => selectedFileIds.includes(f.id))
     .reduce((acc, f) => acc + f.size, 0);
+
+  const ownerAccount = accounts.find((a) => a.id === selectedFile.ownerId) || activeAccount;
 
   return (
     <motion.aside
@@ -154,19 +158,19 @@ export const FileDetails: React.FC<FileDetailsProps> = ({
                       )}
                     </span>
                   </div>
-                  <div className="flex justify-between items-start">
-                    <span className="text-xs text-gray-500">Owner</span>
+                  <div className="flex justify-between items-start text-right">
+                    <span className="text-xs text-gray-500 mr-2">Owner</span>
                     <div className="flex items-center gap-2">
                       <div
                         className={cn(
-                          "w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white",
-                          activeAccount.color,
+                          "w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow-sm",
+                          ownerAccount.color,
                         )}
                       >
-                        {activeAccount.name[0]}
+                        {ownerAccount.name[0]}
                       </div>
                       <span className="text-xs font-semibold text-gray-900">
-                        {activeAccount.name}
+                        {ownerAccount.name}
                       </span>
                     </div>
                   </div>

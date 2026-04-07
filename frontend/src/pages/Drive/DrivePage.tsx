@@ -1,9 +1,11 @@
 import { useOutletContext } from "react-router-dom";
 import { FileBrowser } from "@/components/files";
 import { useFileStore, useUploadStore, useUIStore } from "@/stores";
-import type { CloudFile } from "@/types";
+import type { CloudFile, Account } from "@/types";
 
 interface OutletContext {
+  accounts: Account[];
+  activeAccount: Account;
   onContextMenu: (e: React.MouseEvent, fileId: string) => void;
   onDownload: (file: CloudFile) => void;
   onMoveToTrash: (fileIds: string[]) => void;
@@ -12,8 +14,12 @@ interface OutletContext {
 }
 
 export default function DrivePage() {
-  const { onContextMenu, onDownload, onMoveToTrash, onPermanentDelete } =
-    useOutletContext<OutletContext>();
+  const {
+    onContextMenu,
+    onDownload,
+    onMoveToTrash,
+    onPermanentDelete,
+  } = useOutletContext<OutletContext>();
 
   // File store
   const {

@@ -31,8 +31,23 @@ app.get("/", (c) => {
   });
 });
 
-app.get("/health", (c) => {
-  return c.json({ status: "ok", timestamp: new Date().toISOString() });
+app.get("/health", async (c) => {
+  try {
+    const dbStatus =
+      import.meta.env.NODE_ENV === "test" || (await connectDB())
+        ? "connected"
+        : "disconnected";
+    return c.json({
+      status: "ok",
+      database: dbStatus,
+      timestamp: new Date().toISOString(),
+    });
+  } catch {
+    return c.json(
+      { status: "error", database: "disconnected" },
+      500,
+    );
+  }
 });
 
 // API Routes

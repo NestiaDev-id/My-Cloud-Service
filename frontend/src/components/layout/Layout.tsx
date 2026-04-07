@@ -344,6 +344,7 @@ export default function Layout({
                 selectedFile={selectedFile}
                 files={files}
                 activeAccount={activeAccount}
+                accounts={accounts}
                 isTrashTab={activeTab === "trash"}
                 onClose={() => setSelectedFileIds([])}
                 onRename={handleRename}
