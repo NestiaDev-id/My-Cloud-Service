@@ -14,7 +14,9 @@ const app = new Hono();
  * Generate OAuth URL for adding a new storage account
  */
 app.get("/url", (c) => {
-  const url = getAuthUrl();
+  const name = c.req.query("name");
+  // Pass the custom name via the state parameter
+  const url = getAuthUrl(name);
   return c.json({ url });
 });
 
@@ -24,6 +26,7 @@ app.get("/url", (c) => {
  */
 app.get("/callback", async (c) => {
   const code = c.req.query("code");
+  const state = c.req.query("state"); // This contains our custom name if provided
 
   if (!code) {
     return c.json({ error: "Authorization code is required" }, 400);
@@ -50,10 +53,14 @@ app.get("/callback", async (c) => {
     // Check if account already exists
     let account = await StorageAccount.findOne({ email: userInfo.email });
 
+    // Determine name: use state (custom name) if provided, else userInfo.name, else email
+    const displayName = state || userInfo.name || userInfo.email || "Unknown";
+
     if (account) {
       // Update existing account
       account.refreshToken = tokens.refresh_token;
-      account.name = userInfo.name || userInfo.email || "Unknown";
+      account.name = displayName;
+      account.avatar = userInfo.picture || account.avatar || "";
       account.totalStorage = storageQuota.totalStorage;
       account.usedStorage = storageQuota.usedStorage;
       account.status = "connected";
@@ -73,7 +80,7 @@ app.get("/callback", async (c) => {
 
       account = new StorageAccount({
         email: userInfo.email,
-        name: userInfo.name || userInfo.email || "Unknown",
+        name: displayName,
         avatar: userInfo.picture || "",
         color: randomColor,
         refreshToken: tokens.refresh_token,

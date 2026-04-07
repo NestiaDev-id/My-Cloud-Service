@@ -10,6 +10,7 @@ import {
   UploadModal,
   MoveToModal,
   EditAccountModal,
+  AddAccountModal,
 } from "@/components/modals";
 import { useFileStore, useUploadStore, useUIStore } from "@/stores";
 import { useToast } from "@/components/Toast";
@@ -128,6 +129,8 @@ export default function Layout({
     closeUploadModal,
     openEditModal,
     closeEditModal,
+    openAddAccountModal,
+    closeAddAccountModal,
     setNewName,
     setMovingFileIds,
     setEditForm,
@@ -308,6 +311,7 @@ export default function Layout({
                     onRestoreFiles: handleRestoreFiles,
                     onPermanentDelete: handlePermanentDelete,
                     openEditModal,
+                    openAddAccountModal,
                     showToast,
                   }}
                 />
@@ -434,6 +438,7 @@ export default function Layout({
           }
         />
 
+        <AddAccountModal />
         <EditAccountModal
           isOpen={isEditModalOpen}
           account={editingAccount}

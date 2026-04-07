@@ -6,16 +6,17 @@ import type { Account } from "@/types";
 interface OutletContext {
   accounts: Account[];
   openEditModal: (account: Account) => void;
+  openAddAccountModal: () => void;
   showToast: (message: string, type: "success" | "error" | "info") => void;
 }
 
 export default function MonitoringPage() {
-  const { accounts, openEditModal, showToast } =
+  const { accounts, openEditModal, openAddAccountModal, showToast } =
     useOutletContext<OutletContext>();
   const { isRefreshing, setIsRefreshing } = useUIStore();
 
   const handleAddAccount = () => {
-    showToast("Add account feature coming soon...", "info");
+    openAddAccountModal();
   };
 
   const handleRefresh = () => {

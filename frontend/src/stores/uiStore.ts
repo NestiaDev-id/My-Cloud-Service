@@ -13,6 +13,7 @@ interface UIState {
   isCreateFolderModalOpen: boolean;
   isUploadModalOpen: boolean;
   isEditModalOpen: boolean;
+  isAddAccountModalOpen: boolean;
 
   // Modal data
   renamingFileId: string | null;
@@ -39,6 +40,8 @@ interface UIState {
   closeUploadModal: () => void;
   openEditModal: (account: Account) => void;
   closeEditModal: () => void;
+  openAddAccountModal: () => void;
+  closeAddAccountModal: () => void;
 
   setNewName: (name: string) => void;
   setMovingFileIds: (ids: string[]) => void;
@@ -59,6 +62,7 @@ export const useUIStore = create<UIState>((set) => ({
   isCreateFolderModalOpen: false,
   isUploadModalOpen: false,
   isEditModalOpen: false,
+  isAddAccountModalOpen: false,
 
   renamingFileId: null,
   newName: "",
@@ -108,6 +112,8 @@ export const useUIStore = create<UIState>((set) => ({
       isEditModalOpen: false,
       editingAccount: null,
     }),
+  openAddAccountModal: () => set({ isAddAccountModalOpen: true }),
+  closeAddAccountModal: () => set({ isAddAccountModalOpen: false, newName: "" }),
 
   setNewName: (name) => set({ newName: name }),
   setMovingFileIds: (ids) => set({ movingFileIds: ids }),

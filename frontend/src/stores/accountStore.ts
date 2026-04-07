@@ -107,8 +107,10 @@ export const useAccountStore = create<AccountState>((set) => ({
     }
   },
 
-  getAuthUrl: async () => {
-    const response = await fetch(`${API_URL}/api/auth/url`, {
+  getAuthUrl: async (name?: string) => {
+    const params = new URLSearchParams();
+    if (name) params.append("name", name);
+    const response = await fetch(`${API_URL}/api/auth/url?${params}`, {
       credentials: "include",
     });
     if (!response.ok) throw new Error("Failed to get auth URL");
