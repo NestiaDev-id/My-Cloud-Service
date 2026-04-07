@@ -80,7 +80,29 @@ export async function getStorageQuota(refreshToken: string) {
 }
 
 /**
- * List files from a Drive account
+ * List files from a Drive account with pagination support
+ *
+ * @param refreshToken - OAuth refresh token untuk akun
+ * @param options - Opsi query
+ * @param options.folderId - ID folder (kosong = root)
+ * @param options.pageSize - Jumlah file per halaman (default: 50, max: 100)
+ * @param options.pageToken - Token untuk halaman berikutnya
+ * @param options.query - Pencarian berdasarkan nama file
+ *
+ * @returns Object berisi:
+ *   - files: Array file yang ditemukan
+ *   - nextPageToken: Token untuk load halaman berikutnya (null jika habis)
+ *   - hasMore: Boolean apakah masih ada file lagi
+ *
+ * @example
+ * // Halaman pertama
+ * const page1 = await listFiles(token, { pageSize: 50 });
+ *
+ * // Halaman kedua
+ * const page2 = await listFiles(token, {
+ *   pageSize: 50,
+ *   pageToken: page1.nextPageToken
+ * });
  */
 export async function listFiles(
   refreshToken: string,
@@ -93,6 +115,7 @@ export async function listFiles(
 ) {
   const drive = getDriveClient(refreshToken);
 
+  // Build query string
   let q = "trashed = false";
   if (options.folderId) {
     q += ` and '${options.folderId}' in parents`;
@@ -105,15 +128,17 @@ export async function listFiles(
 
   const { data } = await drive.files.list({
     q,
-    pageSize: options.pageSize || 100,
+    pageSize: Math.min(options.pageSize || 50, 100), // Max 100 per Google API
     pageToken: options.pageToken,
+    orderBy: "folder,modifiedTime desc", // Folder dulu, lalu terbaru di atas
     fields:
       "nextPageToken, files(id, name, mimeType, size, modifiedTime, thumbnailLink, parents, shared, webViewLink)",
   });
 
   return {
     files: data.files || [],
-    nextPageToken: data.nextPageToken,
+    nextPageToken: data.nextPageToken || null,
+    hasMore: !!data.nextPageToken,
   };
 }
 

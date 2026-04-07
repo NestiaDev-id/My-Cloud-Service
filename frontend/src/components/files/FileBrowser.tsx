@@ -8,11 +8,13 @@ import {
   ArrowDown,
   Upload,
   Search,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileList } from "./FileList";
 import { FileGrid } from "./FileGrid";
+import { useInfiniteScroll } from "@/hooks";
 import type { CloudFile } from "@/types";
 
 interface FileBrowserProps {
@@ -27,6 +29,11 @@ interface FileBrowserProps {
   isSortMenuOpen: boolean;
   activeTab: "drive" | "monitoring" | "recent" | "shared" | "trash";
   isDragging: boolean;
+  // Pagination props
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  // Event handlers
   onNavigate: (folderId: string | null) => void;
   onFileClick: (fileId: string, isMulti: boolean) => void;
   onFileDoubleClick: (file: CloudFile) => void;
@@ -56,6 +63,9 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({
   isSortMenuOpen,
   activeTab,
   isDragging,
+  isLoadingMore = false,
+  hasMore = false,
+  onLoadMore = () => {},
   onNavigate,
   onFileClick,
   onFileDoubleClick,
@@ -74,6 +84,14 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({
   onCloseContextMenu,
 }) => {
   const isTrashTab = activeTab === "trash";
+
+  // Setup infinite scroll
+  const { sentinelRef } = useInfiniteScroll({
+    onLoadMore,
+    hasMore,
+    isLoading: isLoadingMore,
+    enabled: activeTab === "drive", // Only enable for drive tab
+  });
 
   const getTitle = () => {
     if (activeTab === "trash") return "Trash";
@@ -240,8 +258,28 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({
         />
       )}
 
+      {/* Loading More Indicator */}
+      {isLoadingMore && (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+          <span className="ml-2 text-sm text-gray-500">Loading more files...</span>
+        </div>
+      )}
+
+      {/* Infinite Scroll Sentinel (invisible trigger) */}
+      {hasMore && !isLoadingMore && (
+        <div ref={sentinelRef} className="h-4" aria-hidden="true" />
+      )}
+
+      {/* End of List Indicator */}
+      {!hasMore && processedFiles.length > 20 && (
+        <div className="text-center py-6 text-gray-400 text-xs font-medium tracking-wide">
+          — End of files ({processedFiles.length} items) —
+        </div>
+      )}
+
       {/* Empty state */}
-      {processedFiles.length === 0 && (
+      {processedFiles.length === 0 && !isLoadingMore && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
             <Search className="w-10 h-10 text-gray-300" />

@@ -22,6 +22,8 @@ export default function DrivePage() {
     currentFolderId,
     sortField,
     sortDirection,
+    isLoadingMore,
+    pagination,
     getProcessedFiles,
     getBreadcrumbs,
     setCurrentFolderId,
@@ -29,6 +31,7 @@ export default function DrivePage() {
     toggleFileSelection,
     handleFolderDoubleClick,
     handleSort,
+    loadMore,
   } = useFileStore();
 
   // Upload store
@@ -59,6 +62,9 @@ export default function DrivePage() {
       isSortMenuOpen={isSortMenuOpen}
       activeTab="drive"
       isDragging={isDragging}
+      isLoadingMore={isLoadingMore}
+      hasMore={pagination.hasMore}
+      onLoadMore={loadMore}
       onNavigate={setCurrentFolderId}
       onFileClick={toggleFileSelection}
       onFileDoubleClick={handleFolderDoubleClick}
