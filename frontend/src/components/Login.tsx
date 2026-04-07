@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Lock, ShieldCheck, ChevronRight, Cloud } from 'lucide-react';
-import type { Account } from '@/types';
+import React, { useState } from "react";
+import { motion } from "motion/react";
+import { Lock, ShieldCheck, ChevronRight, Cloud } from "lucide-react";
+import type { Account } from "@/types";
 
 interface LoginProps {
   accounts: Account[];
@@ -10,20 +10,29 @@ interface LoginProps {
   onAccountLogin: (accountId: string) => void;
 }
 
-export default function Login({ accounts, mainAccount, onMainLogin, onAccountLogin }: LoginProps) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+export default function Login({
+  accounts,
+  mainAccount,
+  onMainLogin,
+  onAccountLogin,
+}: LoginProps) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleMainLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email === mainAccount.email && password === 'admin') {
+    if (email === mainAccount.email && password === "admin") {
       onMainLogin(email);
-      // Auto-select first account if needed, or App handles the transition
-      onAccountLogin(accounts[0].id);
-      setError('');
+      // Auto-select first account if exists
+      if (accounts.length > 0) {
+        onAccountLogin(accounts[0].id);
+      }
+      setError("");
     } else {
-      setError('Invalid email or password. (Try admin@cloudservice.com / admin)');
+      setError(
+        "Invalid email or password. (Try admin@cloudservice.com / admin)",
+      );
     }
   };
 
@@ -34,7 +43,9 @@ export default function Login({ accounts, mainAccount, onMainLogin, onAccountLog
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl shadow-lg mb-4">
             <Cloud className="text-white w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">My Cloud Service</h1>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+            My Cloud Service
+          </h1>
           <p className="text-gray-500 mt-2">Secure multi-account storage</p>
         </div>
 
@@ -45,12 +56,16 @@ export default function Login({ accounts, mainAccount, onMainLogin, onAccountLog
         >
           <div className="flex items-center gap-3 mb-6">
             <ShieldCheck className="text-blue-600 w-6 h-6" />
-            <h2 className="text-xl font-semibold text-gray-800">Main Website Login</h2>
+            <h2 className="text-xl font-semibold text-gray-800">
+              Main Website Login
+            </h2>
           </div>
-          
+
           <form onSubmit={handleMainLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email Address
+              </label>
               <input
                 type="email"
                 value={email}
@@ -60,7 +75,9 @@ export default function Login({ accounts, mainAccount, onMainLogin, onAccountLog
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input

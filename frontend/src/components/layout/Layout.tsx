@@ -1,4 +1,10 @@
-import { useMemo, useCallback, useEffect, Component, type ReactNode } from "react";
+import {
+  useMemo,
+  useCallback,
+  useEffect,
+  Component,
+  type ReactNode,
+} from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence } from "motion/react";
 
@@ -25,7 +31,10 @@ interface LayoutProps {
   onLogout: () => void;
 }
 
-class PageErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: any }> {
+class PageErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: any }
+> {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -37,9 +46,13 @@ class PageErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
     if (this.state.hasError) {
       return (
         <div className="p-8 bg-white rounded-2xl border border-red-100 shadow-sm text-center">
-          <h3 className="text-lg font-bold text-gray-900 mb-2">Halaman Gagal Dimuat</h3>
-          <p className="text-sm text-gray-500 mb-4">{this.state.error?.toString()}</p>
-          <button 
+          <h3 className="text-lg font-bold text-gray-900 mb-2">
+            Halaman Gagal Dimuat
+          </h3>
+          <p className="text-sm text-gray-500 mb-4">
+            {this.state.error?.toString()}
+          </p>
+          <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
           >
@@ -130,7 +143,6 @@ export default function Layout({
     openEditModal,
     closeEditModal,
     openAddAccountModal,
-    closeAddAccountModal,
     setNewName,
     setMovingFileIds,
     setEditForm,
@@ -156,7 +168,12 @@ export default function Layout({
     setCurrentFolderId(null);
     setSelectedFileIds([]);
     closeContextMenu();
-  }, [location.pathname, setCurrentFolderId, setSelectedFileIds, closeContextMenu]);
+  }, [
+    location.pathname,
+    setCurrentFolderId,
+    setSelectedFileIds,
+    closeContextMenu,
+  ]);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, fileId: string) => {
@@ -348,7 +365,9 @@ export default function Layout({
                 isTrashTab={activeTab === "trash"}
                 onMoveToTrash={() => handleMoveToTrash(selectedFileIds)}
                 onRestore={() => handleRestoreFiles(selectedFileIds)}
-                onDeletePermanently={() => handlePermanentDelete(selectedFileIds)}
+                onDeletePermanently={() =>
+                  handlePermanentDelete(selectedFileIds)
+                }
                 onMoveToFolder={() => setMovingFileIds(selectedFileIds)}
                 onClear={() => setSelectedFileIds([])}
               />

@@ -9,42 +9,7 @@ import SharedPage from "./pages/Shared/SharedPage";
 import TrashPage from "./pages/Trash/TrashPage";
 import MonitoringPage from "./pages/Monitoring/MonitoringPage";
 import { ToastProvider } from "./components/Toast";
-
-const STORAGE_ACCOUNTS: Account[] = [
-  {
-    id: "acc_a",
-    name: "Storage Account A",
-    email: "account_a@storage.com",
-    avatar: "A",
-    color: "bg-blue-500",
-    status: "connected",
-    lastCheck: "2024-03-22T10:00:00Z",
-    usedStorage: 10 * 1024 * 1024 * 1024,
-    totalStorage: 15 * 1024 * 1024 * 1024,
-  },
-  {
-    id: "acc_b",
-    name: "Storage Account B",
-    email: "account_b@storage.com",
-    avatar: "B",
-    color: "bg-indigo-600",
-    status: "connected",
-    lastCheck: "2024-03-22T10:05:00Z",
-    usedStorage: 45 * 1024 * 1024 * 1024,
-    totalStorage: 100 * 1024 * 1024 * 1024,
-  },
-  {
-    id: "acc_c",
-    name: "Storage Account C",
-    email: "account_c@storage.com",
-    avatar: "C",
-    color: "bg-emerald-500",
-    status: "disconnected",
-    lastCheck: "2024-03-22T09:30:00Z",
-    usedStorage: 2 * 1024 * 1024 * 1024,
-    totalStorage: 5 * 1024 * 1024 * 1024,
-  },
-];
+import { useAccountStore, useFileStore } from "./stores";
 
 const MAIN_ACCOUNT: Account = {
   id: "main_root",
@@ -61,7 +26,10 @@ const MAIN_ACCOUNT: Account = {
 
 import { Component, type ReactNode } from "react";
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: any }> {
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: any }
+> {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -76,12 +44,14 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
     if (this.state.hasError) {
       return (
         <div className="p-10 bg-red-50 text-red-800 min-h-screen">
-          <h1 className="text-2xl font-bold mb-4">Aplikasi Mengalami Kendala (Crash)</h1>
+          <h1 className="text-2xl font-bold mb-4">
+            Aplikasi Mengalami Kendala (Crash)
+          </h1>
           <pre className="p-4 bg-white border border-red-200 rounded-lg overflow-auto">
             {this.state.error?.toString()}
           </pre>
-          <button 
-            onClick={() => window.location.href = '/'}
+          <button
+            onClick={() => (window.location.href = "/")}
             className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg"
           >
             Kembali ke Dashboard
@@ -94,6 +64,13 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 }
 
 export default function App() {
+  const {
+    accounts,
+    isLoading: accountsLoading,
+    fetchAccounts,
+  } = useAccountStore();
+  const { fetchFiles } = useFileStore();
+
   const [session, setSession] = useState<UserSession>(() => {
     const saved = localStorage.getItem("cloud_session");
     return saved
@@ -104,6 +81,14 @@ export default function App() {
           mainAccountEmail: null,
         };
   });
+
+  // Fetch accounts on mount
+  useEffect(() => {
+    if (session.parentAuthenticated) {
+      fetchAccounts();
+      fetchFiles();
+    }
+  }, [session.parentAuthenticated, fetchAccounts, fetchFiles]);
 
   useEffect(() => {
     localStorage.setItem("cloud_session", JSON.stringify(session));
@@ -129,32 +114,44 @@ export default function App() {
     });
   };
 
-  const activeAccount = STORAGE_ACCOUNTS.find(
-    (a) => a.id === session.activeAccountId,
-  );
+  const activeAccount = accounts.find((a) => a.id === session.activeAccountId);
   const mainAccount =
     session.mainAccountEmail === MAIN_ACCOUNT.email ? MAIN_ACCOUNT : null;
+
+  // Show loading while fetching accounts
+  if (session.parentAuthenticated && accountsLoading && accounts.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading accounts...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ToastProvider>
       <ErrorBoundary>
         {!session.parentAuthenticated ? (
           <Login
-            accounts={STORAGE_ACCOUNTS}
+            accounts={accounts}
             mainAccount={MAIN_ACCOUNT}
             onMainLogin={handleMainLogin}
             onAccountLogin={handleAccountLogin}
           />
         ) : (
           <Routes>
-            <Route element={
-              <Layout
-                activeAccount={activeAccount || STORAGE_ACCOUNTS[0]}
-                mainAccount={mainAccount}
-                accounts={STORAGE_ACCOUNTS}
-                onLogout={handleLogout}
-              />
-            }>
+            <Route
+              element={
+                <Layout
+                  activeAccount={activeAccount || accounts[0]}
+                  mainAccount={mainAccount}
+                  accounts={accounts}
+                  onLogout={handleLogout}
+                />
+              }
+            >
               <Route path="/" element={<Navigate to="/drive" replace />} />
               <Route path="/drive" element={<DrivePage />} />
               <Route path="/monitoring" element={<MonitoringPage />} />

@@ -14,7 +14,7 @@ interface AccountState {
   refreshAllAccounts: () => Promise<void>;
   updateAccount: (accountId: string, data: Partial<Account>) => Promise<void>;
   deleteAccount: (accountId: string) => Promise<void>;
-  getAuthUrl: () => Promise<string>;
+  getAuthUrl: (name?: string) => Promise<string>;
 }
 
 export const useAccountStore = create<AccountState>((set) => ({
