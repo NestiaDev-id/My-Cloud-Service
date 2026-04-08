@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { FileBrowser } from "@/components/files";
 import { useFileStore, useUploadStore, useUIStore } from "@/stores";
@@ -26,7 +27,12 @@ export default function SharedPage() {
     toggleFileSelection,
     handleFolderDoubleClick,
     handleSort,
+    fetchFiles,
   } = useFileStore();
+
+  useEffect(() => {
+    fetchFiles(null, "shared");
+  }, [fetchFiles]);
 
   // Upload store
   const { isDragging, onDragOver, onDragLeave, onDrop } = useUploadStore();

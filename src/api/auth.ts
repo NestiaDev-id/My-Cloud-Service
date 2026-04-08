@@ -49,6 +49,22 @@ app.get("/callback", async (c) => {
     // Get user info
     const userInfo = await getUserInfo(tokens.refresh_token);
     const storageQuota = await getStorageQuota(tokens.refresh_token);
+    const adminEmail = process.env.ADMIN_EMAIL;
+
+    // --- CHECK IF ADMIN ---
+    if (adminEmail && userInfo.email?.toLowerCase() === adminEmail.toLowerCase()) {
+      console.log(`[Auth] Admin logged in: ${userInfo.email}`);
+      
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      
+      // Set a simple admin cookie
+      c.header(
+        "Set-Cookie",
+        `admin_token=active_admin_session; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`,
+      );
+
+      return c.redirect(`${frontendUrl}/monitoring?login=admin_success`);
+    }
 
     // Check if account already exists
     let account = await StorageAccount.findOne({ email: userInfo.email });
@@ -93,7 +109,6 @@ app.get("/callback", async (c) => {
       await account.save();
     }
 
-    // Redirect to frontend with success
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     return c.redirect(`${frontendUrl}/monitoring?connected=true`);
   } catch (error) {
@@ -101,6 +116,39 @@ app.get("/callback", async (c) => {
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     return c.redirect(`${frontendUrl}/monitoring?error=auth_failed`);
   }
+});
+
+/**
+ * GET /api/auth/me
+ * Check current admin status
+ */
+app.get("/me", (c) => {
+  const adminToken = c.req.header("cookie")?.includes("admin_token=active_admin_session");
+  const adminEmail = process.env.ADMIN_EMAIL;
+
+  if (adminToken) {
+    return c.json({
+      authenticated: true,
+      user: {
+        email: adminEmail,
+        role: "admin",
+      },
+    });
+  }
+
+  return c.json({ authenticated: false }, 401);
+});
+
+/**
+ * POST /api/auth/logout
+ * Logout admin
+ */
+app.post("/logout", (c) => {
+  c.header(
+    "Set-Cookie",
+    "admin_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+  );
+  return c.json({ success: true });
 });
 
 export default app;

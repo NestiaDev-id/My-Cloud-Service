@@ -76,6 +76,20 @@ function parseCompositeId(compositeId: string) {
 }
 
 /**
+ * Deduplicate files based on their real Google Drive ID
+ */
+function deduplicateFiles(files: any[]) {
+  const seen = new Set<string>();
+  return files.filter((file) => {
+    if (seen.has(file.driveFileId)) {
+      return false;
+    }
+    seen.add(file.driveFileId);
+    return true;
+  });
+}
+
+/**
  * GET /api/drive/files
  * List files from all connected accounts (unified view) with caching & pagination
  *
@@ -177,8 +191,7 @@ app.get("/files", async (c) => {
         }
       }
 
-      // Cache MISS - fetch from Master Folder
-      console.log(`[Master Folder MISS] Fetching from folder: ${masterFolderId}`);
+      // Fetch from Master Folder
       const result = await listFiles(masterAccount.refreshToken, {
         folderId: masterFolderId,
         pageSize,
@@ -186,16 +199,40 @@ app.get("/files", async (c) => {
         query,
       });
 
-      // Store in cache
+      // Fetch all internal account emails for filtering
+      const internalEmails = accounts.map((a) => a.email.toLowerCase());
+
+      const allTransformed = result.files.map((f: any) =>
+        transformFile(f, masterAccId, true),
+      );
+
+      // Store in cache (store full result)
       await cache.set(cacheKey, {
         files: result.files,
         nextPageToken: result.nextPageToken,
         hasMore: result.hasMore,
       });
 
-      const files = result.files.map((f: any) =>
-        transformFile(f, masterAccId, true),
-      );
+      // Apply shared filter if mode is "shared"
+      let files = allTransformed;
+      if (mode === "shared") {
+        files = allTransformed.filter(
+          (f) => f.ownerEmail && !internalEmails.includes(f.ownerEmail.toLowerCase()),
+        );
+      } else if (!folderId && !query && mode !== "shared") {
+        // In default "My Drive" view (Internal), we might want to show everything OR only internal.
+        // User discussed differentiating them, so for "My Drive" (Internal) we show internal files only?
+        // Actually, "My Drive" usually shows EVERYTHING in that root. Or just internal.
+        // Let's stick to: "Shared" = External only. "My Drive" = Everything or Internal?
+        // Let's make "My Drive" = Internal only specifically if mode is "internal" but usually it's the catch-all.
+        // Revised: "Shared" = External. "My Drive" (default) = Internal.
+        files = allTransformed.filter(
+          (f) => !f.ownerEmail || internalEmails.includes(f.ownerEmail.toLowerCase()),
+        );
+      }
+
+      // Deduplicate results
+      files = deduplicateFiles(files);
 
       return c.json({
         files,
@@ -321,8 +358,11 @@ app.get("/files", async (c) => {
       }
     });
 
-    // 7. Sort by type (folders first) then by lastModified
-    allFiles.sort((a, b) => {
+    // 7. Deduplicate files
+    const deduplicatedFiles = deduplicateFiles(allFiles);
+
+    // 8. Sort by type (folders first) then by lastModified
+    deduplicatedFiles.sort((a, b) => {
       // Folders first
       if (a.type === "folder" && b.type !== "folder") return -1;
       if (a.type !== "folder" && b.type === "folder") return 1;
@@ -333,11 +373,11 @@ app.get("/files", async (c) => {
     });
 
     return c.json({
-      files: allFiles,
+      files: deduplicatedFiles,
       pagination: {
         hasMore,
         pageTokens: newPageTokens,
-        totalLoaded: allFiles.length,
+        totalLoaded: deduplicatedFiles.length,
       },
       fromCache: anyFromCache,
     });

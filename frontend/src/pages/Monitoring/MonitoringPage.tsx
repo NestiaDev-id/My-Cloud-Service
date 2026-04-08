@@ -5,13 +5,14 @@ import type { Account } from "@/types";
 
 interface OutletContext {
   accounts: Account[];
+  fetchAccounts: () => Promise<void>;
   openEditModal: (account: Account) => void;
   openAddAccountModal: () => void;
   showToast: (message: string, type: "success" | "error" | "info") => void;
 }
 
 export default function MonitoringPage() {
-  const { accounts, openEditModal, openAddAccountModal, showToast } =
+  const { accounts, fetchAccounts, openEditModal, openAddAccountModal, showToast } =
     useOutletContext<OutletContext>();
   const { isRefreshing, setIsRefreshing } = useUIStore();
 
@@ -19,12 +20,25 @@ export default function MonitoringPage() {
     openAddAccountModal();
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/accounts/refresh-all`, {
+        method: "POST",
+        credentials: "include"
+      });
+      
+      if (!response.ok) throw new Error("Gagal memperbarui status");
+      
+      // Also fetch accounts to update UI with new storage data
+      await fetchAccounts();
+      
+      showToast("Status storage diperbarui & Cache dibersihkan!", "success");
+    } catch (err) {
+      showToast("Gagal menyinkronkan data dari Google", "error");
+    } finally {
       setIsRefreshing(false);
-      showToast("Account status refreshed", "success");
-    }, 2000);
+    }
   };
 
   const handleReconnect = (account: Account) => {

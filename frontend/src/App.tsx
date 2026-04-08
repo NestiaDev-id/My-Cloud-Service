@@ -82,7 +82,32 @@ export default function App() {
         };
   });
 
-  // Fetch accounts on mount
+  // Fetch accounts on mount or session change
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/auth/me`, {
+          credentials: "include"
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setSession(prev => ({
+            ...prev,
+            parentAuthenticated: true,
+            mainAccountEmail: data.user.email
+          }));
+        } else {
+          setSession(prev => ({ ...prev, parentAuthenticated: false }));
+        }
+      } catch (err) {
+        console.error("Auth check failed:", err);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
   useEffect(() => {
     if (session.parentAuthenticated) {
       fetchAccounts();
@@ -94,19 +119,16 @@ export default function App() {
     localStorage.setItem("cloud_session", JSON.stringify(session));
   }, [session]);
 
-  const handleMainLogin = (email: string) => {
-    setSession((prev) => ({
-      ...prev,
-      parentAuthenticated: true,
-      mainAccountEmail: email,
-    }));
-  };
-
-  const handleAccountLogin = (accountId: string) => {
-    setSession((prev) => ({ ...prev, activeAccountId: accountId }));
-  };
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include"
+      });
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+    
     setSession({
       parentAuthenticated: false,
       activeAccountId: null,
@@ -115,8 +137,12 @@ export default function App() {
   };
 
   const activeAccount = accounts.find((a) => a.id === session.activeAccountId);
-  const mainAccount =
-    session.mainAccountEmail === MAIN_ACCOUNT.email ? MAIN_ACCOUNT : null;
+  
+  // Create a fake main account object for UI compatibility
+  const mainAccount = session.parentAuthenticated ? {
+    ...MAIN_ACCOUNT,
+    email: session.mainAccountEmail || MAIN_ACCOUNT.email
+  } : null;
 
   // Show loading while fetching accounts
   if (session.parentAuthenticated && accountsLoading && accounts.length === 0) {
@@ -124,7 +150,7 @@ export default function App() {
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading accounts...</p>
+          <p className="text-gray-600">Memuat akun storage...</p>
         </div>
       </div>
     );
@@ -134,12 +160,7 @@ export default function App() {
     <ToastProvider>
       <ErrorBoundary>
         {!session.parentAuthenticated ? (
-          <Login
-            accounts={accounts}
-            mainAccount={MAIN_ACCOUNT}
-            onMainLogin={handleMainLogin}
-            onAccountLogin={handleAccountLogin}
-          />
+          <Login />
         ) : (
           <Routes>
             <Route

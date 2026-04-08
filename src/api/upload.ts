@@ -5,21 +5,63 @@ import { invalidateAccountCache } from "../lib/cache.js";
 
 const app = new Hono();
 
+// --- Rate Limiter (In-Memory) ---
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 5; // Maksimal 5 upload
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // Per 10 menit
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  entry.count++;
+  return true;
+}
+
 /**
  * POST /api/upload/init
  * Initialize upload - returns which account to use and resumable upload URL
+ *
+ * Body:
+ * - isPublic: boolean → jika true, upload ke PUBLIC_FOLDER_ID (tanpa API Key, tapi rate limited)
+ * - fileName, mimeType, fileSize: wajib
  */
 app.post("/init", async (c) => {
-  const apiKey = c.req.header("X-API-Key");
-  const serverApiKey = process.env.UPLOAD_API_KEY;
-
-  // Simple protection: if UPLOAD_API_KEY is set, require it in headers
-  if (serverApiKey && apiKey !== serverApiKey) {
-    return c.json({ error: "Unauthorized: Invalid or missing API Key" }, 401);
-  }
-
   const body = await c.req.json();
-  const { fileName, mimeType, fileSize, parentId, preferredAccountId } = body;
+  const { fileName, mimeType, fileSize, parentId, preferredAccountId, isPublic } = body;
+
+  // --- Autentikasi berdasarkan mode ---
+  if (isPublic) {
+    // Public mode: tidak perlu API Key, tapi wajib rate limit
+    const publicFolderId = process.env.PUBLIC_FOLDER_ID;
+    if (!publicFolderId) {
+      return c.json({ error: "Public upload is not configured on this server" }, 503);
+    }
+
+    const clientIp = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
+    if (!checkRateLimit(clientIp)) {
+      return c.json(
+        { error: "Rate limit exceeded. Coba lagi dalam beberapa menit." },
+        429,
+      );
+    }
+  } else {
+    // Private mode: wajib API Key
+    const apiKey = c.req.header("X-API-Key");
+    const serverApiKey = process.env.UPLOAD_API_KEY;
+    if (serverApiKey && apiKey !== serverApiKey) {
+      return c.json({ error: "Unauthorized: Invalid or missing API Key" }, 401);
+    }
+  }
 
   if (!fileName || !mimeType || !fileSize) {
     return c.json(
@@ -95,16 +137,20 @@ app.post("/init", async (c) => {
       selectedAccount = suitableAccounts[0];
     }
 
-    // Parse parent folder ID if provided, or use Master Folder
+    // Parse parent folder ID if provided, or auto-target based on mode
     let googleParentId: string | undefined;
     const masterFolderId = process.env.MASTER_FOLDER_ID;
+    const publicFolderId = process.env.PUBLIC_FOLDER_ID;
 
     if (parentId) {
       // User specified a specific folder
       const [, folderId] = parentId.split(":");
       googleParentId = folderId;
+    } else if (isPublic && publicFolderId) {
+      // Public upload → target Public Folder
+      googleParentId = publicFolderId;
     } else if (masterFolderId) {
-      // Auto-target Master Folder for centralized storage
+      // Private upload → target Master Folder
       googleParentId = masterFolderId;
     }
 

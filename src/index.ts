@@ -9,6 +9,8 @@ import accountsApi from "./api/accounts.js";
 import driveApi from "./api/drive.js";
 import uploadApi from "./api/upload.js";
 import authApi from "./api/auth.js";
+import { startCleanupJob } from "./lib/cleanup.js";
+import { authMiddleware } from "./lib/auth.js";
 
 const app = new Hono();
 
@@ -53,9 +55,14 @@ app.get("/health", async (c) => {
 
 // API Routes
 app.route("/api/auth", authApi);
+app.route("/api/upload", uploadApi); // Headless API (Protected by API Key inside)
+
+// Protected Admin Routes
+app.use("/api/accounts/*", authMiddleware);
+app.use("/api/drive/*", authMiddleware);
+
 app.route("/api/accounts", accountsApi);
 app.route("/api/drive", driveApi);
-app.route("/api/upload", uploadApi);
 
 // Start server
 const port = parseInt(process.env.PORT || "3000");
@@ -64,6 +71,9 @@ async function main() {
   try {
     await connectDB();
     console.log("✅ Connected to MongoDB Atlas");
+
+    // Start background cleanup job for public folder
+    startCleanupJob();
 
     serve({
       fetch: app.fetch,

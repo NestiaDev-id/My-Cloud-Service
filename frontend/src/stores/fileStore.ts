@@ -41,7 +41,7 @@ interface FileState {
   handleSort: (field: "name" | "size" | "lastModified") => void;
 
   // API Actions
-  fetchFiles: (folderId?: string | null) => Promise<void>;
+  fetchFiles: (folderId?: string | null, mode?: string) => Promise<void>;
   loadMore: () => Promise<void>;
   refreshFiles: () => Promise<void>;
   moveToTrash: (fileIds: string[]) => Promise<void>;
@@ -177,11 +177,12 @@ export const useFileStore = create<FileState>((set, get) => ({
    * Fetch files (initial load atau saat navigasi folder)
    * Reset pagination state
    */
-  fetchFiles: async (folderId?: string | null) => {
+  fetchFiles: async (folderId?: string | null, mode?: string) => {
     set({ isLoading: true, error: null });
     try {
       const params = new URLSearchParams();
       if (folderId) params.append("folderId", folderId);
+      if (mode) params.append("mode", mode);
       params.append("pageSize", "50");
 
       const response = await fetch(`${API_URL}/api/drive/files?${params}`, {

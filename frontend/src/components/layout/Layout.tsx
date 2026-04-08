@@ -18,7 +18,7 @@ import {
   EditAccountModal,
   AddAccountModal,
 } from "@/components/modals";
-import { useFileStore, useUploadStore, useUIStore } from "@/stores";
+import { useFileStore, useUploadStore, useUIStore, useAccountStore } from "@/stores";
 import { useToast } from "@/components/Toast";
 import type { Account, CloudFile } from "@/types";
 
@@ -101,6 +101,8 @@ export default function Layout({
     addFiles,
     handleFolderDoubleClick,
   } = useFileStore();
+
+  const { fetchAccounts } = useAccountStore();
 
   // Upload store
   const {
@@ -318,6 +320,7 @@ export default function Layout({
                 <Outlet
                   context={{
                     accounts,
+                    fetchAccounts,
                     activeAccount,
                     activeTab,
                     onContextMenu: handleContextMenu,

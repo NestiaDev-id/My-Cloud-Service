@@ -1,38 +1,33 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { Lock, ShieldCheck, ChevronRight, Cloud } from "lucide-react";
-import type { Account } from "@/types";
+import { ShieldCheck, ChevronRight, Cloud } from "lucide-react";
 
 interface LoginProps {
-  accounts: Account[];
-  mainAccount: Account;
-  onMainLogin: (email: string) => void;
   onAccountLogin: (accountId: string) => void;
 }
 
-export default function Login({
-  accounts,
-  mainAccount,
-  onMainLogin,
-  onAccountLogin,
-}: LoginProps) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+export default function Login() {
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleMainLogin = (e: React.FormEvent) => {
+  const handleMainLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email === mainAccount.email && password === "admin") {
-      onMainLogin(email);
-      // Auto-select first account if exists
-      if (accounts.length > 0) {
-        onAccountLogin(accounts[0].id);
-      }
-      setError("");
-    } else {
-      setError(
-        "Invalid email or password. (Try admin@cloudservice.com / admin)",
-      );
+    setIsLoading(true);
+    setError("");
+    
+    try {
+      // Fetch OAuth URL for Admin login
+      const response = await fetch(`${API_URL}/api/auth/url?name=Admin`);
+      if (!response.ok) throw new Error("Gagal mengambil URL autentikasi");
+      const { url } = await response.json();
+      
+      // Redirect to Google OAuth
+      window.location.href = url;
+    } catch (err) {
+      setError("Gagal terhubung ke sistem login Google. Silakan coba lagi.");
+      setIsLoading(false);
     }
   };
 
@@ -57,44 +52,34 @@ export default function Login({
           <div className="flex items-center gap-3 mb-6">
             <ShieldCheck className="text-blue-600 w-6 h-6" />
             <h2 className="text-xl font-semibold text-gray-800">
-              Main Website Login
+              Admin Login
             </h2>
           </div>
 
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+            <p className="text-sm text-blue-800 leading-relaxed">
+              Gunakan akun **Google Root** Anda untuk masuk ke dashboard admin dan mengelola storage.
+            </p>
+          </div>
+
           <form onSubmit={handleMainLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                placeholder="Enter main email"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                  placeholder="Enter password"
-                />
-              </div>
-            </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
+            {error && (
+              <p className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+                {error}
+              </p>
+            )}
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              disabled={isLoading}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold py-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
             >
-              Sign In <ChevronRight className="w-5 h-5" />
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  Masuk dengan Google <ChevronRight className="w-5 h-5" />
+                </>
+              )}
             </button>
           </form>
         </motion.div>
@@ -102,3 +87,4 @@ export default function Login({
     </div>
   );
 }
+

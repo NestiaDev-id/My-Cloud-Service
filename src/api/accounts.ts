@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { StorageAccount, toDTO } from "../models/Account.js";
 import { getStorageQuota } from "../lib/google.js";
+import { FileCache } from "../models/FileCache.js";
 
 const app = new Hono();
 
@@ -122,6 +123,9 @@ app.post("/:id/refresh", async (c) => {
  */
 app.post("/refresh-all", async (c) => {
   try {
+    // Clear all file metadata caches to force fresh fetch from Google
+    await FileCache.deleteMany({});
+
     const accounts = await StorageAccount.find({ isActive: true });
 
     const results = await Promise.allSettled(
