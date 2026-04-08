@@ -45,6 +45,7 @@ function getFileType(
 
 // Transform Google Drive file to our CloudFile format
 function transformFile(file: any, accountId: string, isRoot: boolean = false) {
+  const owner = file.owners?.[0];
   return {
     id: `${accountId}:${file.id}`, // Composite ID: accountId:fileId
     driveFileId: file.id,
@@ -54,6 +55,8 @@ function transformFile(file: any, accountId: string, isRoot: boolean = false) {
     mimeType: file.mimeType,
     lastModified: file.modifiedTime,
     ownerId: accountId,
+    ownerEmail: owner?.emailAddress || null,
+    ownerDisplayName: owner?.displayName || null,
     // If it's a root fetch, we set parentId to null so the frontend Unified View displays it
     parentId: isRoot
       ? null
@@ -98,6 +101,7 @@ app.get("/files", async (c) => {
   const pageSize = parseInt(c.req.query("pageSize") || "50");
   const pageTokensParam = c.req.query("pageTokens");
   const forceRefresh = c.req.query("refresh") === "true";
+  const mode = c.req.query("mode"); // "shared" for shared files
 
   try {
     // 1. Get all active accounts
@@ -118,6 +122,95 @@ app.get("/files", async (c) => {
         message: "No connected accounts",
       });
     }
+
+    // ========================================
+    // MASTER FOLDER MODE (Centralized Fetch)
+    // ========================================
+    const masterFolderId = process.env.MASTER_FOLDER_ID;
+
+    if (masterFolderId && !folderId && !mode) {
+      // Use the first account (Master Account) to fetch from the shared folder
+      const masterAccount = accounts[0];
+      const masterAccId = masterAccount._id.toString();
+
+      // Parse page token
+      let pageToken: string | undefined;
+      if (pageTokensParam) {
+        try {
+          const tokens = JSON.parse(pageTokensParam);
+          pageToken = tokens[masterAccId] || undefined;
+        } catch {
+          // Invalid JSON
+        }
+      }
+
+      // Cache key for master folder
+      const cacheKey = getCacheKey({
+        accountId: masterAccId,
+        folderId: masterFolderId,
+        query,
+        pageToken,
+      });
+
+      // Check cache
+      if (!forceRefresh) {
+        const cached = await cache.get<{
+          files: any[];
+          nextPageToken: string | null;
+          hasMore: boolean;
+        }>(cacheKey);
+
+        if (cached) {
+          console.log(`[Master Folder Cache HIT] ${cacheKey} (age: ${cached.age}ms)`);
+          const files = cached.data.files.map((f) =>
+            transformFile(f, masterAccId, true),
+          );
+          return c.json({
+            files,
+            pagination: {
+              hasMore: cached.data.hasMore,
+              pageTokens: { [masterAccId]: cached.data.nextPageToken },
+              totalLoaded: files.length,
+            },
+            fromCache: true,
+          });
+        }
+      }
+
+      // Cache MISS - fetch from Master Folder
+      console.log(`[Master Folder MISS] Fetching from folder: ${masterFolderId}`);
+      const result = await listFiles(masterAccount.refreshToken, {
+        folderId: masterFolderId,
+        pageSize,
+        pageToken,
+        query,
+      });
+
+      // Store in cache
+      await cache.set(cacheKey, {
+        files: result.files,
+        nextPageToken: result.nextPageToken,
+        hasMore: result.hasMore,
+      });
+
+      const files = result.files.map((f: any) =>
+        transformFile(f, masterAccId, true),
+      );
+
+      return c.json({
+        files,
+        pagination: {
+          hasMore: result.hasMore,
+          pageTokens: { [masterAccId]: result.nextPageToken },
+          totalLoaded: files.length,
+        },
+        fromCache: false,
+      });
+    }
+
+    // ========================================
+    // LEGACY MODE (Multi-Account Parallel Fetch)
+    // ========================================
 
     // 2. Parse page tokens from request
     let pageTokens: Record<string, string | null> = {};
@@ -189,6 +282,7 @@ app.get("/files", async (c) => {
           pageSize: pageSizePerAccount,
           pageToken: currentPageToken,
           query,
+          sharedWithMe: mode === "shared",
         });
 
         // Store in cache (raw files, before transform)

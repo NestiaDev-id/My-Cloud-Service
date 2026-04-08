@@ -160,18 +160,34 @@ export const FileDetails: React.FC<FileDetailsProps> = ({
                   </div>
                   <div className="flex justify-between items-start text-right">
                     <span className="text-xs text-gray-500 mr-2">Owner</span>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={cn(
-                          "w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow-sm",
-                          ownerAccount.color,
-                        )}
-                      >
-                        {ownerAccount.name[0]}
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={cn(
+                            "w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow-sm",
+                            ownerAccount.color,
+                          )}
+                        >
+                          {ownerAccount.name[0]}
+                        </div>
+                        <span className="text-xs font-semibold text-gray-900">
+                          {ownerAccount.name}
+                        </span>
                       </div>
-                      <span className="text-xs font-semibold text-gray-900">
-                        {ownerAccount.name}
-                      </span>
+                      {selectedFile.ownerEmail && (
+                        <span
+                          className={cn(
+                            "text-[9px] font-bold px-2 py-0.5 rounded-full",
+                            accounts.some((a) => a.email === selectedFile.ownerEmail)
+                              ? "bg-emerald-50 text-emerald-600"
+                              : "bg-amber-50 text-amber-600",
+                          )}
+                        >
+                          {accounts.some((a) => a.email === selectedFile.ownerEmail)
+                            ? "✓ Internal"
+                            : "👤 External"}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

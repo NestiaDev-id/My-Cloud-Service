@@ -9,6 +9,8 @@ export interface CloudFile {
   mimeType?: string;
   lastModified: string;
   ownerId: string;
+  ownerEmail?: string;
+  ownerDisplayName?: string;
   itemCount?: number;
   parentId?: string;
   thumbnailUrl?: string;

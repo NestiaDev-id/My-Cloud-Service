@@ -33,18 +33,19 @@ app.get("/", (c) => {
 
 app.get("/health", async (c) => {
   try {
-    const dbStatus =
-      import.meta.env.NODE_ENV === "test" || (await connectDB())
-        ? "connected"
-        : "disconnected";
+    // connectDB returns void, so we just await it and if it doesn't throw, it's connected
+    if (process.env.NODE_ENV !== "test") {
+      await connectDB();
+    }
     return c.json({
       status: "ok",
-      database: dbStatus,
+      database: "connected",
       timestamp: new Date().toISOString(),
     });
-  } catch {
+  } catch (error) {
+    console.error("Health check failed:", error);
     return c.json(
-      { status: "error", database: "disconnected" },
+      { status: "error", database: "disconnected", message: (error as Error).message },
       500,
     );
   }

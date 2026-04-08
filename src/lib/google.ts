@@ -111,13 +111,16 @@ export async function listFiles(
     pageSize?: number;
     pageToken?: string;
     query?: string;
+    sharedWithMe?: boolean;
   } = {},
 ) {
   const drive = getDriveClient(refreshToken);
 
   // Build query string
   let q = "trashed = false";
-  if (options.folderId) {
+  if (options.sharedWithMe) {
+    q = "sharedWithMe = true and trashed = false";
+  } else if (options.folderId) {
     q += ` and '${options.folderId}' in parents`;
   } else {
     q += " and 'root' in parents";
@@ -132,7 +135,9 @@ export async function listFiles(
     pageToken: options.pageToken,
     orderBy: "folder,modifiedTime desc", // Folder dulu, lalu terbaru di atas
     fields:
-      "nextPageToken, files(id, name, mimeType, size, modifiedTime, thumbnailLink, parents, shared, webViewLink)",
+      "nextPageToken, files(id, name, mimeType, size, modifiedTime, thumbnailLink, parents, shared, webViewLink, owners(displayName, emailAddress))",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   return {

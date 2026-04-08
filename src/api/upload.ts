@@ -10,6 +10,14 @@ const app = new Hono();
  * Initialize upload - returns which account to use and resumable upload URL
  */
 app.post("/init", async (c) => {
+  const apiKey = c.req.header("X-API-Key");
+  const serverApiKey = process.env.UPLOAD_API_KEY;
+
+  // Simple protection: if UPLOAD_API_KEY is set, require it in headers
+  if (serverApiKey && apiKey !== serverApiKey) {
+    return c.json({ error: "Unauthorized: Invalid or missing API Key" }, 401);
+  }
+
   const body = await c.req.json();
   const { fileName, mimeType, fileSize, parentId, preferredAccountId } = body;
 
@@ -87,11 +95,17 @@ app.post("/init", async (c) => {
       selectedAccount = suitableAccounts[0];
     }
 
-    // Parse parent folder ID if provided
+    // Parse parent folder ID if provided, or use Master Folder
     let googleParentId: string | undefined;
+    const masterFolderId = process.env.MASTER_FOLDER_ID;
+
     if (parentId) {
+      // User specified a specific folder
       const [, folderId] = parentId.split(":");
       googleParentId = folderId;
+    } else if (masterFolderId) {
+      // Auto-target Master Folder for centralized storage
+      googleParentId = masterFolderId;
     }
 
     // Get resumable upload URL from Google
