@@ -2,10 +2,6 @@ import React, { useState } from "react";
 import { motion } from "motion/react";
 import { ShieldCheck, ChevronRight, Cloud } from "lucide-react";
 
-interface LoginProps {
-  onAccountLogin: (accountId: string) => void;
-}
-
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export default function Login() {
@@ -87,4 +83,3 @@ export default function Login() {
     </div>
   );
 }
-

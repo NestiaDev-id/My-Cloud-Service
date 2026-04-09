@@ -55,7 +55,9 @@ export const FileDetails: React.FC<FileDetailsProps> = ({
     .filter((f) => selectedFileIds.includes(f.id))
     .reduce((acc, f) => acc + f.size, 0);
 
-  const ownerAccount = accounts.find((a) => a.id === selectedFile.ownerId) || activeAccount;
+  const ownerAccount = selectedFile
+    ? accounts.find((a) => a.id === selectedFile.ownerId) || activeAccount
+    : activeAccount;
 
   return (
     <motion.aside
