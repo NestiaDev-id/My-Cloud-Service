@@ -60,7 +60,7 @@ app.get("/callback", async (c) => {
       // Set a simple admin cookie
       c.header(
         "Set-Cookie",
-        `admin_token=active_admin_session; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`,
+        `admin_token=active_admin_session; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=${60 * 60 * 24 * 7}`,
       );
 
       return c.redirect(`${frontendUrl}/monitoring?login=admin_success`);
@@ -146,7 +146,7 @@ app.get("/me", (c) => {
 app.post("/logout", (c) => {
   c.header(
     "Set-Cookie",
-    "admin_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+    "admin_token=; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=0",
   );
   return c.json({ success: true });
 });
