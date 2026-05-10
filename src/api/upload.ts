@@ -270,8 +270,8 @@ app.post("/complete", async (c) => {
     account.lastCheck = new Date();
     await account.save();
 
-    // Invalidate cache so new file appears immediately
-    await invalidateAccountCache(accountId);
+    // Invalidate all file-related caches to ensure the unified/master view is updated
+    await cache.invalidate("files:");
 
     return c.json({
       success: true,

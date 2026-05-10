@@ -551,16 +551,38 @@ app.post("/files/:id/trash", async (c) => {
   const { accountId, fileId } = parseCompositeId(compositeId);
 
   try {
-    const account = await StorageAccount.findById(accountId);
+    let account = await StorageAccount.findById(accountId);
     if (!account) {
       return c.json({ error: "Account not found" }, 404);
     }
 
-    await trashFile(account.refreshToken, fileId);
+    try {
+      await trashFile(account.refreshToken, fileId);
+    } catch (err: any) {
+      // Jika error 403/404, mungkin file ini milik akun lain yang di-share.
+      // Mari cari siapa pemilik aslinya berdasarkan email
+      const fileMeta = await getFile(account.refreshToken, fileId);
+      const ownerEmail = fileMeta.owners?.[0]?.emailAddress;
 
-    // Invalidate cache
-    await invalidateAccountCache(accountId);
+      if (ownerEmail && ownerEmail !== account.email) {
+        const realOwner = await StorageAccount.findOne({
+          email: ownerEmail,
+          isActive: true,
+        });
+        if (realOwner) {
+          console.log(`[Drive] Trashing file using real owner: ${ownerEmail}`);
+          await trashFile(realOwner.refreshToken, fileId);
+          account = realOwner; // Update for cache invalidation
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
 
+    // Invalidate all file-related caches
+    await cache.invalidate("files:");
     return c.json({ success: true });
   } catch (error) {
     console.error("Error trashing file:", error);
@@ -577,16 +599,37 @@ app.delete("/files/:id", async (c) => {
   const { accountId, fileId } = parseCompositeId(compositeId);
 
   try {
-    const account = await StorageAccount.findById(accountId);
+    let account = await StorageAccount.findById(accountId);
     if (!account) {
       return c.json({ error: "Account not found" }, 404);
     }
 
-    await deleteFile(account.refreshToken, fileId);
+    try {
+      await deleteFile(account.refreshToken, fileId);
+    } catch (err: any) {
+      // Sama seperti trash, coba cari pemilik aslinya jika gagal
+      const fileMeta = await getFile(account.refreshToken, fileId);
+      const ownerEmail = fileMeta.owners?.[0]?.emailAddress;
 
-    // Invalidate cache
-    await invalidateAccountCache(accountId);
+      if (ownerEmail && ownerEmail !== account.email) {
+        const realOwner = await StorageAccount.findOne({
+          email: ownerEmail,
+          isActive: true,
+        });
+        if (realOwner) {
+          console.log(`[Drive] Deleting file using real owner: ${ownerEmail}`);
+          await deleteFile(realOwner.refreshToken, fileId);
+          account = realOwner;
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
 
+    // Invalidate all file-related caches
+    await cache.invalidate("files:");
     return c.json({ success: true });
   } catch (error) {
     console.error("Error deleting file:", error);
