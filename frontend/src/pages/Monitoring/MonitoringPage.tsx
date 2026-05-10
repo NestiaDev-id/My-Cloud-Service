@@ -41,11 +41,25 @@ export default function MonitoringPage() {
     }
   };
 
-  const handleReconnect = (account: Account) => {
-    showToast(`Reconnecting ${account.name}...`, "info");
-    setTimeout(() => {
-      showToast(`${account.name} reconnected successfully`, "success");
-    }, 1500);
+  const handleReconnect = async (account: Account) => {
+    try {
+      showToast(`Menghubungkan ulang ${account.name}...`, "info");
+      
+      // Get the real Google Auth URL from our backend
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/auth/url?name=${encodeURIComponent(account.name)}`, {
+        credentials: "include"
+      });
+      
+      if (!response.ok) throw new Error("Gagal mengambil URL auth");
+      
+      const data = await response.json();
+      
+      // Redirect user to Google Login page
+      window.location.href = data.url;
+    } catch (err) {
+      console.error("Reconnect failed:", err);
+      showToast("Gagal memulai proses login ulang", "error");
+    }
   };
 
   const handleDiagnostic = (account: Account) => {
