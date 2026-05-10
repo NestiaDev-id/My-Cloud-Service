@@ -10,6 +10,7 @@ import driveApi from "./api/drive.js";
 import uploadApi from "./api/upload.js";
 import authApi from "./api/auth.js";
 import { startCleanupJob } from "./lib/cleanup.js";
+import { startHeartbeat } from "./lib/heartbeat.js";
 import { authMiddleware } from "./lib/auth.js";
 
 const app = new Hono();
@@ -74,6 +75,8 @@ async function main() {
 
     // Start background cleanup job for public folder
     startCleanupJob();
+    // Start heartbeat to keep MongoDB connection alive
+    startHeartbeat();
 
     serve({
       fetch: app.fetch,
