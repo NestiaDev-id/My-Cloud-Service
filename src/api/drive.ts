@@ -549,25 +549,24 @@ app.post("/files/:id/move", async (c) => {
  */
 async function findFileOwnerAccount(callerAccount: any, fileId: string) {
   try {
-    // Ambil metadata file untuk melihat siapa pemilik aslinya
     const fileMeta = await getFile(callerAccount.refreshToken, fileId);
     const ownerEmail = fileMeta.owners?.[0]?.emailAddress;
 
     if (ownerEmail && ownerEmail !== callerAccount.email) {
-      // Pemilik asli beda dengan akun yang melihat → cari akun pemilik asli di database kita
       const realOwner = await StorageAccount.findOne({
         email: ownerEmail,
         isActive: true,
       });
       if (realOwner) {
-        console.log(`[Drive] Found real owner: ${ownerEmail} (was called by ${callerAccount.email})`);
         return realOwner;
       }
     }
-  } catch (err) {
-    console.warn(`[Drive] Failed to lookup file owner for ${fileId}:`, err);
+  } catch (err: any) {
+    // Jika file tidak ditemukan (404), biarkan saja, nanti fungsi delete yang menangani
+    if (err.status !== 404) {
+      console.warn(`[Drive] Owner lookup failed for ${fileId}:`, err.message);
+    }
   }
-  // Fallback: gunakan akun pemanggil
   return callerAccount;
 }
 
@@ -581,20 +580,22 @@ app.post("/files/:id/trash", async (c) => {
 
   try {
     const callerAccount = await StorageAccount.findById(accountId);
-    if (!callerAccount) {
-      return c.json({ error: "Account not found" }, 404);
-    }
+    if (!callerAccount) return c.json({ error: "Account not found" }, 404);
 
-    // KUNCI: Cari pemilik asli DULU sebelum mencoba hapus
     const ownerAccount = await findFileOwnerAccount(callerAccount, fileId);
 
-    await trashFile(ownerAccount.refreshToken, fileId);
-    console.log(`[Drive] File ${fileId} trashed by owner: ${ownerAccount.email}`);
+    try {
+      await trashFile(ownerAccount.refreshToken, fileId);
+    } catch (err: any) {
+      // Jika file sudah tidak ada, anggap sukses
+      if (err.status === 404) return c.json({ success: true, message: "File already gone" });
+      throw err;
+    }
 
     return c.json({ success: true });
-  } catch (error) {
-    console.error("Error trashing file:", error);
-    return c.json({ error: "Failed to trash file" }, 500);
+  } catch (error: any) {
+    console.error("Error trashing file:", error.message);
+    return c.json({ error: error.message || "Failed to trash file" }, 500);
   } finally {
     await cache.invalidate("files:");
   }
@@ -610,20 +611,22 @@ app.delete("/files/:id", async (c) => {
 
   try {
     const callerAccount = await StorageAccount.findById(accountId);
-    if (!callerAccount) {
-      return c.json({ error: "Account not found" }, 404);
-    }
+    if (!callerAccount) return c.json({ error: "Account not found" }, 404);
 
-    // KUNCI: Cari pemilik asli DULU sebelum mencoba hapus
     const ownerAccount = await findFileOwnerAccount(callerAccount, fileId);
 
-    await deleteFile(ownerAccount.refreshToken, fileId);
-    console.log(`[Drive] File ${fileId} permanently deleted by owner: ${ownerAccount.email}`);
+    try {
+      await deleteFile(ownerAccount.refreshToken, fileId);
+    } catch (err: any) {
+      // Jika file sudah tidak ada, anggap sukses (karena tujuannya memang menghapus)
+      if (err.status === 404) return c.json({ success: true, message: "File already deleted" });
+      throw err;
+    }
 
     return c.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting file:", error);
-    return c.json({ error: "Failed to delete file" }, 500);
+  } catch (error: any) {
+    console.error("Error deleting file:", error.message);
+    return c.json({ error: error.message || "Failed to delete file" }, 500);
   } finally {
     await cache.invalidate("files:");
   }
