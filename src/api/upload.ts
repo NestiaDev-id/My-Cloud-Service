@@ -55,11 +55,13 @@ app.post("/init", async (c) => {
       );
     }
   } else {
-    // Private mode: wajib API Key
+    // Private mode: Wajib API Key ATAU Sedang Login sebagai Admin
     const apiKey = c.req.header("X-API-Key");
     const serverApiKey = process.env.UPLOAD_API_KEY;
-    if (serverApiKey && apiKey !== serverApiKey) {
-      return c.json({ error: "Unauthorized: Invalid or missing API Key" }, 401);
+    const isAdmin = c.req.header("cookie")?.includes("admin_token=active_admin_session");
+
+    if (!isAdmin && serverApiKey && apiKey !== serverApiKey) {
+      return c.json({ error: "Unauthorized: Silakan login sebagai admin atau gunakan API Key" }, 401);
     }
   }
 

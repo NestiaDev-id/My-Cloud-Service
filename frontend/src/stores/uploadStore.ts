@@ -117,20 +117,50 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         }));
 
         // 2. Upload directly to Google Drive using resumable upload URL
-        const uploadResponse = await fetch(uploadUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": file.type || "application/octet-stream",
-            "Content-Length": file.size.toString(),
-          },
-          body: file,
+        // Using XMLHttpRequest to track progress
+        const uploadedFile = await new Promise<any>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", uploadUrl);
+          xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const progress = Math.round((event.loaded / event.total) * 100);
+              
+              // Calculate estimated time remaining
+              const elapsed = Date.now() - uploadingFile.startTime;
+              const rate = event.loaded / elapsed; // bytes per ms
+              const remaining = event.total - event.loaded;
+              const timeRemaining = rate > 0 ? Math.round(remaining / rate) : 0;
+
+              set((state) => ({
+                uploadingFiles: state.uploadingFiles.map((f) =>
+                  f.id === uploadingFile.id ? { 
+                    ...f, 
+                    progress, 
+                    estimatedTimeRemaining: timeRemaining 
+                  } : f
+                ),
+              }));
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                resolve(JSON.parse(xhr.responseText));
+              } catch (e) {
+                // Google sometimes returns empty body for successful PUT
+                resolve({ id: "completed" });
+              }
+            } else {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Network error during upload"));
+          xhr.send(file);
         });
-
-        if (!uploadResponse.ok) {
-          throw new Error("Failed to upload file");
-        }
-
-        const uploadedFile = await uploadResponse.json();
 
         // 3. Notify backend upload is complete
         await fetch(`${API_URL}/api/upload/complete`, {
