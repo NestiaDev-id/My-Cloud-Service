@@ -1,9 +1,21 @@
 import { Hono } from "hono";
 import { StorageAccount, toDTO } from "../models/Account.js";
 import { getStorageQuota } from "../lib/google.js";
-import { FileCache } from "../models/FileCache.js";
+import { cache } from "../lib/cache.js";
 
 const app = new Hono();
+
+/**
+ * GET /api/accounts/panic-refresh
+ * A simple GET endpoint to force clear all cache if dashboard is stuck
+ */
+app.get("/panic-refresh", async (c) => {
+  await cache.clear();
+  return c.json({ 
+    success: true, 
+    message: "All cache cleared. Dashboard should now be synced with Google Drive." 
+  });
+});
 
 /**
  * GET /api/accounts

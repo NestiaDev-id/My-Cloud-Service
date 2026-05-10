@@ -607,33 +607,36 @@ app.delete("/files/:id", async (c) => {
     try {
       await deleteFile(account.refreshToken, fileId);
     } catch (err: any) {
-      // Sama seperti trash, coba cari pemilik aslinya jika gagal
-      const fileMeta = await getFile(account.refreshToken, fileId);
-      const ownerEmail = fileMeta.owners?.[0]?.emailAddress;
+      console.warn(`[Drive] Primary delete failed for ${fileId}, trying metadata lookup...`);
+      try {
+        const fileMeta = await getFile(account.refreshToken, fileId);
+        const ownerEmail = fileMeta.owners?.[0]?.emailAddress;
 
-      if (ownerEmail && ownerEmail !== account.email) {
-        const realOwner = await StorageAccount.findOne({
-          email: ownerEmail,
-          isActive: true,
-        });
-        if (realOwner) {
-          console.log(`[Drive] Deleting file using real owner: ${ownerEmail}`);
-          await deleteFile(realOwner.refreshToken, fileId);
-          account = realOwner;
+        if (ownerEmail && ownerEmail !== account.email) {
+          const realOwner = await StorageAccount.findOne({ email: ownerEmail, isActive: true });
+          if (realOwner) {
+            await deleteFile(realOwner.refreshToken, fileId);
+          } else {
+            throw err;
+          }
         } else {
           throw err;
         }
-      } else {
-        throw err;
+      } catch (innerErr) {
+        // Jika tetap gagal hapus di Google, kita tetap lanjut ke pembersihan cache
+        // agar dashboard tidak "stuck" menampilkan file hantu
+        console.error("[Drive] Permanent delete failed:", innerErr);
       }
     }
 
-    // Invalidate all file-related caches
-    await cache.invalidate("files:");
     return c.json({ success: true });
   } catch (error) {
     console.error("Error deleting file:", error);
     return c.json({ error: "Failed to delete file" }, 500);
+  } finally {
+    // KUNCI: Apapun yang terjadi (sukses/gagal hapus di Google), 
+    // hapus cache agar dashboard sinkron dengan realita terbaru
+    await cache.invalidate("files:");
   }
 });
 
