@@ -25,10 +25,9 @@ async function cleanupPublicFolder(): Promise<void> {
     }
 
     // Ambil semua file di folder publik
-    const drive = getDriveClient(masterAccount.refreshToken);
     const { data } = await drive.files.list({
       q: `'${publicFolderId}' in parents and trashed = false`,
-      fields: "files(id, name, createdTime)",
+      fields: "files(id, name, createdTime, owners)",
       pageSize: 100,
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
@@ -40,17 +39,31 @@ async function cleanupPublicFolder(): Promise<void> {
     const now = Date.now();
     let deletedCount = 0;
 
-    for (const file of files) {
+    // Ambil semua akun untuk lookup cepat
+    const allAccounts = await StorageAccount.find({ isActive: true });
+
+    for (const file of files as any[]) {
       if (!file.createdTime || !file.id) continue;
 
       const fileAge = now - new Date(file.createdTime).getTime();
       if (fileAge > MAX_AGE_MS) {
         try {
-          await deleteFile(masterAccount.refreshToken, file.id);
+          const ownerEmail = file.owners?.[0]?.emailAddress;
+          let deleteToken = masterAccount.refreshToken;
+
+          // Jika pemilik file bukan master account, cari token pemilik aslinya
+          if (ownerEmail && ownerEmail !== masterAccount.email) {
+            const realOwner = allAccounts.find(a => a.email === ownerEmail);
+            if (realOwner) {
+              deleteToken = realOwner.refreshToken;
+            }
+          }
+
+          await deleteFile(deleteToken, file.id);
           deletedCount++;
           console.log(`[Cleanup] Dihapus: ${file.name} (umur: ${Math.round(fileAge / 60000)} menit)`);
-        } catch (err) {
-          console.error(`[Cleanup] Gagal menghapus ${file.name}:`, (err as Error).message);
+        } catch (err: any) {
+          console.error(`[Cleanup] Gagal menghapus ${file.name}:`, err.message);
         }
       }
     }

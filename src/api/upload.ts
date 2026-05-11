@@ -173,10 +173,8 @@ app.post("/init", async (c) => {
 
     return c.json({
       uploadUrl,
-      accountId: selectedAccount.account._id.toString(),
-      accountName: selectedAccount.account.name,
-      availableSpace: selectedAccount.availableSpace,
-      expiresIn: 3600, // Upload URL typically valid for 1 hour
+      accountId: selectedAccount.account._id,
+      isPublic: !!isPublic, // Beritahu frontend ini upload publik atau bukan
     });
   } catch (error) {
     console.error("Error initializing upload:", error);
@@ -247,16 +245,18 @@ app.get("/status", async (c) => {
   }
 });
 
+import { FileRecord } from "../models/FileRecord.js";
+
 /**
  * POST /api/upload/complete
- * Notify backend that upload is complete (for updating storage quota)
+ * Notify backend that upload is complete (for updating storage quota & recording metadata)
  */
 app.post("/complete", async (c) => {
   const body = await c.req.json();
-  const { accountId, fileSize } = body;
+  const { accountId, fileSize, fileId, fileName, mimeType, isPublic } = body;
 
-  if (!accountId) {
-    return c.json({ error: "accountId is required" }, 400);
+  if (!accountId || !fileId) {
+    return c.json({ error: "accountId and fileId are required" }, 400);
   }
 
   try {
@@ -265,21 +265,38 @@ app.post("/complete", async (c) => {
       return c.json({ error: "Account not found" }, 404);
     }
 
-    // Update used storage
+    // 1. Update kuota penyimpanan akun
     account.usedStorage += fileSize || 0;
     account.lastCheck = new Date();
     await account.save();
 
-    // Invalidate all file-related caches to ensure the unified/master view is updated
+    // 2. Simpan catatan file ke MongoDB (Buku Induk)
+    const expirationTime = isPublic 
+      ? new Date(Date.now() + 30 * 60 * 1000) // 30 menit dari sekarang
+      : undefined;
+
+    await FileRecord.create({
+      fileId,
+      name: fileName || "Untitled",
+      mimeType: mimeType || "application/octet-stream",
+      size: fileSize || 0,
+      accountId,
+      isPublic: !!isPublic,
+      ownerEmail: account.email,
+      expireAt: expirationTime, // Jika publik, akan hapus otomatis dari DB
+    });
+
+    // 3. Bersihkan cache dashboard agar file baru langsung muncul
     await cache.invalidate("files:");
 
     return c.json({
       success: true,
       newUsedStorage: account.usedStorage,
+      message: isPublic ? "Public file recorded (auto-delete in 30m)" : "Private file recorded",
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error completing upload:", error);
-    return c.json({ error: "Failed to complete upload" }, 500);
+    return c.json({ error: "Failed to complete upload: " + error.message }, 500);
   }
 });
 

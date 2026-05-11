@@ -107,7 +107,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           throw new Error("Failed to initialize upload");
         }
 
-        const { uploadUrl, accountId } = await initResponse.json();
+        const { uploadUrl, accountId, isPublic } = await initResponse.json();
 
         // Update with upload URL
         set((state) => ({
@@ -117,7 +117,6 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         }));
 
         // 2. Upload directly to Google Drive using resumable upload URL
-        // Using XMLHttpRequest to track progress
         const uploadedFile = await new Promise<any>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open("PUT", uploadUrl);
@@ -126,20 +125,14 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
               const progress = Math.round((event.loaded / event.total) * 100);
-              
-              // Calculate estimated time remaining
               const elapsed = Date.now() - uploadingFile.startTime;
-              const rate = event.loaded / elapsed; // bytes per ms
+              const rate = event.loaded / elapsed;
               const remaining = event.total - event.loaded;
               const timeRemaining = rate > 0 ? Math.round(remaining / rate) : 0;
 
               set((state) => ({
                 uploadingFiles: state.uploadingFiles.map((f) =>
-                  f.id === uploadingFile.id ? { 
-                    ...f, 
-                    progress, 
-                    estimatedTimeRemaining: timeRemaining 
-                  } : f
+                  f.id === uploadingFile.id ? { ...f, progress, estimatedTimeRemaining: timeRemaining } : f
                 ),
               }));
             }
@@ -148,10 +141,11 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
               try {
+                // Google returns file metadata in JSON
                 resolve(JSON.parse(xhr.responseText));
               } catch (e) {
-                // Google sometimes returns empty body for successful PUT
-                resolve({ id: "completed" });
+                // In some cases response might be empty, but success is 200/201/204
+                resolve({ id: "unknown" }); 
               }
             } else {
               reject(new Error(`Upload failed with status ${xhr.status}`));
@@ -162,14 +156,18 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           xhr.send(file);
         });
 
-        // 3. Notify backend upload is complete
+        // 3. Notify backend upload is complete with full metadata
         await fetch(`${API_URL}/api/upload/complete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
             accountId,
+            fileId: uploadedFile.id,
+            fileName: file.name,
             fileSize: file.size,
+            mimeType: file.type || "application/octet-stream",
+            isPublic: !!isPublic
           }),
         });
 
