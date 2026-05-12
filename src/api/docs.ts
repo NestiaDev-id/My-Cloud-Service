@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { apiReference } from "@scalar/hono-api-reference";
 
-const app = new Hono();
+const app = new Hono({ strict: false });
 
 const openApiSpec = {
   openapi: "3.0.0",
@@ -120,7 +120,7 @@ const openApiSpec = {
 };
 
 app.get(
-  "/",
+  "*",
   apiReference({
     theme: "purple",
     layout: "modern",
