@@ -63,9 +63,61 @@ app.route("/api/upload", uploadApi); // Headless API (Protected by API Key insid
 app.use("/api/accounts/*", authMiddleware);
 app.use("/api/drive/*", authMiddleware);
 
+import { apiReference } from "@scalar/hono-api-reference";
+
+// ... (sisipkan definisi openApiSpec di sini atau tetap impor dari docsApi)
+import docsApi from "./api/docs.js";
+
 app.route("/api/accounts", accountsApi);
 app.route("/api/drive", driveApi);
-app.route("/reference", docsApi);
+
+// Pasang dokumentasi langsung di root agar satu level dengan /health
+app.get("/reference", apiReference({
+  theme: "purple",
+  layout: "modern",
+  spec: {
+    url: "/api-spec.json" // Kita akan buat endpoint JSON terpisah agar Scalar lebih stabil
+  },
+}));
+
+// Endpoint untuk menyediakan file spec OpenAPI
+app.get("/api-spec.json", (c) => {
+  return c.json({
+    openapi: "3.0.0",
+    info: {
+      title: "Digital Post Office API",
+      version: "1.0.0",
+      description: "API for high-performance cloud storage with multi-account support and automatic cleanup.",
+    },
+    paths: {
+      "/api/upload/init": {
+        post: {
+          tags: ["Upload"],
+          summary: "Initialize Resumable Upload",
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object", properties: { fileName: { type: "string" }, fileSize: { type: "number" }, mimeType: { type: "string" }, isPublic: { type: "boolean" } } } } }
+          },
+          responses: { 200: { description: "Success" } }
+        }
+      },
+      "/api/upload/complete": {
+        post: {
+          tags: ["Upload"],
+          summary: "Complete Upload",
+          responses: { 200: { description: "Success" } }
+        }
+      },
+      "/api/drive/files": {
+        get: {
+          tags: ["Drive"],
+          summary: "List Files",
+          responses: { 200: { description: "Success" } }
+        }
+      }
+    }
+  });
+});
 
 // Start server
 const port = parseInt(process.env.PORT || "3000");
