@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { ShieldCheck, ChevronRight, Cloud } from "lucide-react";
+import { ShieldCheck, ChevronRight, Cloud, Code, ExternalLink } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -78,7 +78,29 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <p className="text-center text-xs text-gray-400 font-medium mb-3 uppercase tracking-widest">
+              Developers
+            </p>
+            <a
+              href={`${API_URL}/reference`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-blue-600 transition-colors"
+            >
+              <div className="p-1.5 bg-gray-50 group-hover:bg-blue-50 rounded-lg transition-colors">
+                <Code className="w-4 h-4" />
+              </div>
+              Explore API Reference
+              <ExternalLink className="w-3 h-3 text-gray-300" />
+            </a>
+          </div>
         </motion.div>
+
+        <p className="text-center mt-8 text-gray-400 text-xs">
+          Built for high-performance cloud operations
+        </p>
       </div>
     </div>
   );

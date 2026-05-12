@@ -7,9 +7,13 @@ import {
   Trash2,
   Activity,
   Cloud,
+  Code,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatSize } from "@/utils";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 interface SidebarProps {
   onNewClick: () => void;
@@ -58,23 +62,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      <nav className="flex-1 px-2 space-y-1">
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.id}
-            to={item.to}
-            className={({ isActive }) => cn(
-              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
-              isActive
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-100",
-            )}
+      <div className="flex-1 px-2 space-y-6">
+        <nav className="space-y-1">
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.id}
+              to={item.to}
+              className={({ isActive }) => cn(
+                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-600 hover:bg-gray-100",
+              )}
+            >
+              {item.icon}
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="pt-2">
+          <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+            Developer
+          </p>
+          <a
+            href={`${API_URL}/reference`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
           >
-            {item.icon}
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
+            <div className="flex items-center gap-3">
+              <Code className="w-5 h-5 text-gray-400" />
+              API Reference
+            </div>
+            <ExternalLink className="w-3 h-3 text-gray-300" />
+          </a>
+        </div>
+      </div>
 
       <div className="p-4 border-t border-gray-100">
         <div className="bg-gray-50 rounded-2xl p-4">

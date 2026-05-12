@@ -9,6 +9,7 @@ import accountsApi from "./api/accounts.js";
 import driveApi from "./api/drive.js";
 import uploadApi from "./api/upload.js";
 import authApi from "./api/auth.js";
+import docsApi from "./api/docs.js";
 import { startCleanupJob } from "./lib/cleanup.js";
 import { startHeartbeat } from "./lib/heartbeat.js";
 import { authMiddleware } from "./lib/auth.js";
@@ -64,6 +65,7 @@ app.use("/api/drive/*", authMiddleware);
 
 app.route("/api/accounts", accountsApi);
 app.route("/api/drive", driveApi);
+app.route("/reference", docsApi);
 
 // Start server
 const port = parseInt(process.env.PORT || "3000");
