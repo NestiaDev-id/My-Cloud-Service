@@ -24,6 +24,9 @@ async function cleanupPublicFolder(): Promise<void> {
       return;
     }
 
+    // Inisialisasi drive client untuk operasi penghapusan
+    const drive = getDriveClient(masterAccount.refreshToken);
+
     // Ambil semua file di folder publik
     const { data } = await drive.files.list({
       q: `'${publicFolderId}' in parents and trashed = false`,

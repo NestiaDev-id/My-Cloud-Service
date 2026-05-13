@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { StorageAccount } from "../models/Account.js";
 import { getUploadUrl, getStorageQuota } from "../lib/google.js";
-import { invalidateAccountCache } from "../lib/cache.js";
+import { cache, invalidateAccountCache } from "../lib/cache.js";
+import { FileRecord } from "../models/FileRecord.js";
 
 const app = new Hono();
 
@@ -245,7 +246,6 @@ app.get("/status", async (c) => {
   }
 });
 
-import { FileRecord } from "../models/FileRecord.js";
 
 /**
  * POST /api/upload/complete

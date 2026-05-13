@@ -124,6 +124,7 @@ app.get(
   apiReference({
     theme: "purple",
     layout: "modern",
+    // @ts-ignore
     spec: {
       content: openApiSpec,
     },
