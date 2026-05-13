@@ -13,6 +13,7 @@ import { startCleanupJob } from "./lib/cleanup.js";
 import { startHeartbeat } from "./lib/heartbeat.js";
 import { authMiddleware } from "./lib/auth.js";
 import { apiReference } from "@scalar/hono-api-reference";
+import { openApiSpec } from "./api/docs.js";
 
 const app = new Hono();
 
@@ -58,41 +59,7 @@ app.get("/health", async (c) => {
 app.get("/reference", apiReference({
   // @ts-ignore - Bypass strict type checking for Scalar configuration
   spec: {
-    content: {
-      openapi: "3.0.0",
-      info: {
-        title: "My Cloud Service API",
-        version: "1.0.0",
-        description: "API for high-performance cloud storage with multi-account support and automatic cleanup.",
-      },
-      paths: {
-        "/api/upload/init": {
-          post: {
-            tags: ["Upload"],
-            summary: "Initialize Resumable Upload",
-            requestBody: {
-              required: true,
-              content: { "application/json": { schema: { type: "object", properties: { fileName: { type: "string" }, fileSize: { type: "number" }, mimeType: { type: "string" }, isPublic: { type: "boolean" } } } } }
-            },
-            responses: { 200: { description: "Success" } }
-          }
-        },
-        "/api/upload/complete": {
-          post: {
-            tags: ["Upload"],
-            summary: "Complete Upload",
-            responses: { 200: { description: "Success" } }
-          }
-        },
-        "/api/drive/files": {
-          get: {
-            tags: ["Drive"],
-            summary: "List Files",
-            responses: { 200: { description: "Success" } }
-          }
-        }
-      }
-    }
+    content: openApiSpec
   },
 }));
 
