@@ -9,10 +9,11 @@ import accountsApi from "./api/accounts.js";
 import driveApi from "./api/drive.js";
 import uploadApi from "./api/upload.js";
 import authApi from "./api/auth.js";
-import docsApi from "./api/docs.js";
 import { startCleanupJob } from "./lib/cleanup.js";
 import { startHeartbeat } from "./lib/heartbeat.js";
 import { authMiddleware } from "./lib/auth.js";
+import { apiReference } from "@scalar/hono-api-reference";
+import { openApiSpec } from "./api/docs.js";
 
 const app = new Hono();
 
@@ -26,7 +27,7 @@ app.use(
   }),
 );
 
-// Health check
+// Health check & Info
 app.get("/", (c) => {
   return c.json({
     message: "My Cloud Service API",
@@ -37,7 +38,6 @@ app.get("/", (c) => {
 
 app.get("/health", async (c) => {
   try {
-    // connectDB returns void, so we just await it and if it doesn't throw, it's connected
     if (process.env.NODE_ENV !== "test") {
       await connectDB();
     }
@@ -46,78 +46,36 @@ app.get("/health", async (c) => {
       database: "connected",
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Health check failed:", error);
     return c.json(
-      { status: "error", database: "disconnected", message: (error as Error).message },
+      { status: "error", database: "disconnected", message: error.message },
       500,
     );
   }
 });
 
-// API Routes
+// API Documentation (Scalar)
+app.get("/reference", apiReference({
+  // @ts-ignore - Bypass strict type checking for Scalar configuration
+  spec: {
+    content: openApiSpec
+  },
+}));
+
+// Routes
 app.route("/api/auth", authApi);
-app.route("/api/upload", uploadApi); // Headless API (Protected by API Key inside)
+app.route("/api/upload", uploadApi);
 
 // Protected Admin Routes
 app.use("/api/accounts/*", authMiddleware);
 app.use("/api/drive/*", authMiddleware);
 
-import { apiReference } from "@scalar/hono-api-reference";
-
-// ... (sisipkan definisi openApiSpec di sini atau tetap impor dari docsApi)
-import docsApi from "./api/docs.js";
-
 app.route("/api/accounts", accountsApi);
 app.route("/api/drive", driveApi);
 
-// Pasang dokumentasi langsung di root agar satu level dengan /health
-app.get("/reference", apiReference({
-  theme: "purple",
-  layout: "modern",
-  spec: {
-    url: "/api-spec.json" // Kita akan buat endpoint JSON terpisah agar Scalar lebih stabil
-  },
-}));
-
-// Endpoint untuk menyediakan file spec OpenAPI
-app.get("/api-spec.json", (c) => {
-  return c.json({
-    openapi: "3.0.0",
-    info: {
-      title: "Digital Post Office API",
-      version: "1.0.0",
-      description: "API for high-performance cloud storage with multi-account support and automatic cleanup.",
-    },
-    paths: {
-      "/api/upload/init": {
-        post: {
-          tags: ["Upload"],
-          summary: "Initialize Resumable Upload",
-          requestBody: {
-            required: true,
-            content: { "application/json": { schema: { type: "object", properties: { fileName: { type: "string" }, fileSize: { type: "number" }, mimeType: { type: "string" }, isPublic: { type: "boolean" } } } } }
-          },
-          responses: { 200: { description: "Success" } }
-        }
-      },
-      "/api/upload/complete": {
-        post: {
-          tags: ["Upload"],
-          summary: "Complete Upload",
-          responses: { 200: { description: "Success" } }
-        }
-      },
-      "/api/drive/files": {
-        get: {
-          tags: ["Drive"],
-          summary: "List Files",
-          responses: { 200: { description: "Success" } }
-        }
-      }
-    }
-  });
-});
+// Export for Vercel
+export default app;
 
 // Start server
 const port = parseInt(process.env.PORT || "3000");
@@ -127,21 +85,23 @@ async function main() {
     await connectDB();
     console.log("✅ Connected to MongoDB Atlas");
 
-    // Start background cleanup job for public folder
     startCleanupJob();
-    // Start heartbeat to keep MongoDB connection alive
     startHeartbeat();
 
-    serve({
-      fetch: app.fetch,
-      port,
-    });
-
-    console.log(`🚀 Server running on http://localhost:${port}`);
+    // Only run serve() if not on Vercel
+    if (!process.env.VERCEL) {
+      serve({
+        fetch: app.fetch,
+        port,
+      });
+      console.log(`🚀 Server running on http://localhost:${port}`);
+    }
   } catch (error) {
     console.error("❌ Failed to start server:", error);
     process.exit(1);
   }
 }
 
-main();
+if (!process.env.VERCEL) {
+  main();
+}

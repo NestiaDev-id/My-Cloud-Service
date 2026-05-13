@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { StorageAccount, toDTO } from "../models/Account.js";
+import { FileCache } from "../models/FileCache.js";
 import { getStorageQuota } from "../lib/google.js";
 import { cache } from "../lib/cache.js";
 
