@@ -9,6 +9,7 @@ import {
   Cloud,
   Code,
   ExternalLink,
+  Key,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatSize } from "@/utils";
@@ -97,6 +98,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <ExternalLink className="w-3 h-3 text-gray-300" />
           </a>
+          <NavLink
+            to="/api-keys"
+            className={({ isActive }) => cn(
+              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
+              isActive
+                ? "bg-violet-50 text-violet-700"
+                : "text-gray-600 hover:bg-gray-100",
+            )}
+          >
+            <Key className="w-5 h-5" />
+            API Keys
+          </NavLink>
         </div>
       </div>
 

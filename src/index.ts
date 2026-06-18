@@ -9,6 +9,7 @@ import accountsApi from "./api/accounts.js";
 import driveApi from "./api/drive.js";
 import uploadApi from "./api/upload.js";
 import authApi from "./api/auth.js";
+import apikeysApi from "./api/apikeys.js";
 import { startCleanupJob } from "./lib/cleanup.js";
 import { startHeartbeat } from "./lib/heartbeat.js";
 import { authMiddleware } from "./lib/auth.js";
@@ -70,9 +71,11 @@ app.route("/api/upload", uploadApi);
 // Protected Admin Routes
 app.use("/api/accounts/*", authMiddleware);
 app.use("/api/drive/*", authMiddleware);
+app.use("/api/keys/*", authMiddleware);
 
 app.route("/api/accounts", accountsApi);
 app.route("/api/drive", driveApi);
+app.route("/api/keys", apikeysApi);
 
 // Export for Vercel
 export default app;
