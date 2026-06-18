@@ -8,6 +8,7 @@ import RecentPage from "./pages/Recent/RecentPage";
 import SharedPage from "./pages/Shared/SharedPage";
 import TrashPage from "./pages/Trash/TrashPage";
 import MonitoringPage from "./pages/Monitoring/MonitoringPage";
+import ApiKeysPage from "./pages/ApiKeys/ApiKeysPage";
 import { ToastProvider } from "./components/Toast";
 import { useAccountStore, useFileStore } from "./stores";
 
@@ -179,6 +180,7 @@ export default function App() {
               <Route path="/recent" element={<RecentPage />} />
               <Route path="/shared" element={<SharedPage />} />
               <Route path="/trash" element={<TrashPage />} />
+              <Route path="/api-keys" element={<ApiKeysPage />} />
             </Route>
           </Routes>
         )}

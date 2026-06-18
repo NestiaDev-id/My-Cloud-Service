@@ -3,6 +3,7 @@ import { StorageAccount } from "../models/Account.js";
 import { getUploadUrl, getStorageQuota } from "../lib/google.js";
 import { cache, invalidateAccountCache } from "../lib/cache.js";
 import { FileRecord } from "../models/FileRecord.js";
+import { ApiKey, hashApiKey } from "../models/ApiKey.js";
 
 const app = new Hono();
 
@@ -57,11 +58,41 @@ app.post("/init", async (c) => {
     }
   } else {
     // Private mode: Wajib API Key ATAU Sedang Login sebagai Admin
-    const apiKey = c.req.header("X-API-Key");
-    const serverApiKey = process.env.UPLOAD_API_KEY;
+    const apiKeyHeader = c.req.header("X-API-Key");
     const isAdmin = c.req.header("cookie")?.includes("admin_token=active_admin_session");
 
-    if (!isAdmin && serverApiKey && apiKey !== serverApiKey) {
+    if (isAdmin) {
+      // Admin login → permanen, no TTL
+      (c as any).uploadTier = "admin";
+    } else if (apiKeyHeader) {
+      // Collaborator mode → validate key from database
+      const keyHash = hashApiKey(apiKeyHeader);
+      const apiKeyDoc = await ApiKey.findOne({ keyHash, isActive: true });
+
+      if (!apiKeyDoc) {
+        return c.json({ error: "Invalid API Key" }, 403);
+      }
+
+      // Check if key has expired
+      if (apiKeyDoc.expiresAt && Date.now() > apiKeyDoc.expiresAt.getTime()) {
+        return c.json({ error: "API Key has expired" }, 403);
+      }
+
+      // Update usage tracking
+      const now = Date.now();
+      if (now > apiKeyDoc.usageTodayResetAt.getTime()) {
+        apiKeyDoc.usageToday = 1;
+        apiKeyDoc.usageTodayResetAt = new Date(now + 24 * 60 * 60 * 1000);
+      } else {
+        apiKeyDoc.usageToday += 1;
+      }
+      apiKeyDoc.lastUsedAt = new Date();
+      await apiKeyDoc.save();
+
+      // Store TTL info for the /complete endpoint
+      (c as any).uploadTier = "collaborator";
+      (c as any).keyTtlMs = apiKeyDoc.ttlMs;
+    } else {
       return c.json({ error: "Unauthorized: Silakan login sebagai admin atau gunakan API Key" }, 401);
     }
   }
@@ -175,7 +206,9 @@ app.post("/init", async (c) => {
     return c.json({
       uploadUrl,
       accountId: selectedAccount.account._id,
-      isPublic: !!isPublic, // Beritahu frontend ini upload publik atau bukan
+      isPublic: !!isPublic,
+      uploadTier: (c as any).uploadTier || (isPublic ? "public" : "admin"),
+      keyTtlMs: (c as any).keyTtlMs ?? null,
     });
   } catch (error) {
     console.error("Error initializing upload:", error);
@@ -253,7 +286,7 @@ app.get("/status", async (c) => {
  */
 app.post("/complete", async (c) => {
   const body = await c.req.json();
-  const { accountId, fileSize, fileId, fileName, mimeType, isPublic } = body;
+  const { accountId, fileSize, fileId, fileName, mimeType, isPublic, uploadTier, keyTtlMs } = body;
 
   if (!accountId || !fileId) {
     return c.json({ error: "accountId and fileId are required" }, 400);
@@ -270,10 +303,24 @@ app.post("/complete", async (c) => {
     account.lastCheck = new Date();
     await account.save();
 
-    // 2. Simpan catatan file ke MongoDB (Buku Induk)
-    const expirationTime = isPublic 
-      ? new Date(Date.now() + 30 * 60 * 1000) // 30 menit dari sekarang
-      : undefined;
+    // 2. Tentukan TTL berdasarkan tier pengguna
+    let expirationTime: Date | undefined;
+    let tierLabel: string;
+
+    if (isPublic || uploadTier === "public") {
+      // Public → 30 menit
+      expirationTime = new Date(Date.now() + 30 * 60 * 1000);
+      tierLabel = "Public file recorded (auto-delete in 30m)";
+    } else if (uploadTier === "collaborator" && keyTtlMs) {
+      // Collaborator → sesuai durasi key
+      expirationTime = new Date(Date.now() + keyTtlMs);
+      const days = Math.round(keyTtlMs / (24 * 60 * 60 * 1000));
+      tierLabel = `Collaborator file recorded (auto-delete in ${days} days)`;
+    } else {
+      // Admin → permanen (tidak ada expiry)
+      expirationTime = undefined;
+      tierLabel = "Admin file recorded (permanent)";
+    }
 
     await FileRecord.create({
       fileId,
@@ -283,7 +330,7 @@ app.post("/complete", async (c) => {
       accountId,
       isPublic: !!isPublic,
       ownerEmail: account.email,
-      expireAt: expirationTime, // Jika publik, akan hapus otomatis dari DB
+      expireAt: expirationTime,
     });
 
     // 3. Bersihkan cache dashboard agar file baru langsung muncul
@@ -292,7 +339,7 @@ app.post("/complete", async (c) => {
     return c.json({
       success: true,
       newUsedStorage: account.usedStorage,
-      message: isPublic ? "Public file recorded (auto-delete in 30m)" : "Private file recorded",
+      message: tierLabel,
     });
   } catch (error: any) {
     console.error("Error completing upload:", error);
