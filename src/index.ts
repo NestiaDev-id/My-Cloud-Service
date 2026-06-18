@@ -69,8 +69,11 @@ app.route("/api/auth", authApi);
 app.route("/api/upload", uploadApi);
 
 // Protected Admin Routes
+app.use("/api/accounts", authMiddleware);
 app.use("/api/accounts/*", authMiddleware);
+app.use("/api/drive", authMiddleware);
 app.use("/api/drive/*", authMiddleware);
+app.use("/api/keys", authMiddleware);
 app.use("/api/keys/*", authMiddleware);
 
 app.route("/api/accounts", accountsApi);
