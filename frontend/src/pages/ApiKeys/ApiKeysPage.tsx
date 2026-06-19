@@ -13,6 +13,24 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
+/**
+ * Dynamic Endpoint Handshake — fetches the current route token from the backend
+ * to construct the moving endpoint URL for API keys.
+ */
+async function getKeysBaseUrl(): Promise<string> {
+  try {
+    const res = await fetch(`${API_URL}/api/auth/route-token`, { credentials: "include" });
+    if (res.ok) {
+      const data = await res.json();
+      return `${API_URL}/api/keys_${data.routeToken}`;
+    }
+  } catch (err) {
+    console.error("Failed to fetch route token:", err);
+  }
+  // Fallback — should not happen if admin is logged in
+  return `${API_URL}/api/keys`;
+}
+
 interface ApiKeyItem {
   id: string;
   name: string;
@@ -74,7 +92,8 @@ export default function ApiKeysPage() {
 
   const fetchKeys = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/keys`, { credentials: "include" });
+      const baseUrl = await getKeysBaseUrl();
+      const res = await fetch(baseUrl, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setKeys(data.keys);
@@ -98,7 +117,8 @@ export default function ApiKeysPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/keys/${id}`, {
+      const baseUrl = await getKeysBaseUrl();
+      const res = await fetch(`${baseUrl}/${id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -266,7 +286,8 @@ function GenerateKeyModal({
     if (!name.trim()) return;
     setIsGenerating(true);
     try {
-      const res = await fetch(`${API_URL}/api/keys`, {
+      const baseUrl = await getKeysBaseUrl();
+      const res = await fetch(baseUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

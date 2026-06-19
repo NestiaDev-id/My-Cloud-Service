@@ -9,6 +9,7 @@ import { StorageAccount, toDTO } from "../models/Account.js";
 import { createJWT, verifyJWT } from "../lib/auth.js";
 import { encrypt } from "../lib/encryption.js";
 import { audit } from "../models/AuditLog.js";
+import { getActiveRouteToken } from "../lib/heartbeat.js";
 
 const app = new Hono();
 
@@ -188,6 +189,29 @@ app.post("/logout", async (c) => {
     "admin_token=; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=0",
   );
   return c.json({ success: true });
+});
+
+/**
+ * GET /api/auth/route-token
+ * Handshake endpoint — returns the current dynamic route suffix.
+ * Protected by JWT (only admin can request this).
+ */
+app.get("/route-token", (c) => {
+  // JWT verification is done by authMiddleware registered in index.ts
+  // But since /api/auth is NOT behind authMiddleware, we verify manually here
+  const cookie = c.req.header("cookie");
+  const adminTokenMatch = cookie?.match(/admin_token=([^;]+)/);
+
+  if (!adminTokenMatch) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const payload = verifyJWT(adminTokenMatch[1]);
+  if (!payload || payload.role !== "admin") {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  return c.json({ routeToken: getActiveRouteToken() });
 });
 
 export default app;
