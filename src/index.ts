@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { secureHeaders } from "hono/secure-headers";
 import "dotenv/config";
 
 import { connectDB } from "./lib/db.js";
@@ -15,11 +16,13 @@ import { startHeartbeat } from "./lib/heartbeat.js";
 import { authMiddleware } from "./lib/auth.js";
 import { apiReference } from "@scalar/hono-api-reference";
 import { openApiSpec } from "./api/docs.js";
+import { AuditLog } from "./models/AuditLog.js";
 
 const app = new Hono();
 
 // Middleware
 app.use("*", logger());
+app.use("*", secureHeaders());
 app.use(
   "*",
   cors({
@@ -79,6 +82,13 @@ app.use("/api/keys/*", authMiddleware);
 app.route("/api/accounts", accountsApi);
 app.route("/api/drive", driveApi);
 app.route("/api/keys", apikeysApi);
+
+// Audit Log Endpoint (admin only)
+app.get("/api/audit", authMiddleware, async (c) => {
+  const limit = parseInt(c.req.query("limit") || "50");
+  const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(Math.min(limit, 200));
+  return c.json({ logs });
+});
 
 // Export for Vercel
 export default app;
