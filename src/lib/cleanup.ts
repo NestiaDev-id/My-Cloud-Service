@@ -1,5 +1,6 @@
 import { StorageAccount } from "../models/Account.js";
 import { listFiles, deleteFile, getDriveClient } from "../lib/google.js";
+import { sanitizeInput } from "../lib/security.js";
 
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // Scan setiap 5 menit
 const MAX_AGE_MS = 30 * 60 * 1000; // File dihapus setelah 30 menit
@@ -29,7 +30,7 @@ async function cleanupPublicFolder(): Promise<void> {
 
     // Ambil semua file di folder publik
     const { data } = await drive.files.list({
-      q: `'${publicFolderId}' in parents and trashed = false`,
+      q: `'${sanitizeInput(publicFolderId)}' in parents and trashed = false`,
       fields: "files(id, name, createdTime, owners)",
       pageSize: 100,
       supportsAllDrives: true,
