@@ -59,8 +59,8 @@ app.get("/health", async (c) => {
   }
 });
 
-// API Documentation (Scalar)
-app.get("/reference", apiReference({
+// API Documentation (Scalar) — Protected: Admin only
+app.get("/reference", authMiddleware, apiReference({
   // @ts-ignore - Bypass strict type checking for Scalar configuration
   spec: {
     content: openApiSpec
@@ -76,12 +76,35 @@ app.use("/api/accounts", authMiddleware);
 app.use("/api/accounts/*", authMiddleware);
 app.use("/api/drive", authMiddleware);
 app.use("/api/drive/*", authMiddleware);
-app.use("/api/keys", authMiddleware);
-app.use("/api/keys/*", authMiddleware);
 
 app.route("/api/accounts", accountsApi);
 app.route("/api/drive", driveApi);
-app.route("/api/keys", apikeysApi);
+
+// Dynamic Endpoint Routing for API Keys (Moving Target Defense)
+// The route suffix rotates every 5 minutes via heartbeat.
+// Frontend must call GET /api/auth/route-token to discover the current suffix.
+import { isValidRouteToken } from "./lib/heartbeat.js";
+
+app.use("/api/keys_:token", authMiddleware);
+app.use("/api/keys_:token/*", authMiddleware);
+
+app.all("/api/keys_:token/*", async (c, next) => {
+  const token = c.req.param("token") || "";
+  if (!isValidRouteToken(token)) {
+    return c.json({ error: "Invalid or expired route token" }, 404);
+  }
+  await next();
+});
+
+app.all("/api/keys_:token", async (c, next) => {
+  const token = c.req.param("token") || "";
+  if (!isValidRouteToken(token)) {
+    return c.json({ error: "Invalid or expired route token" }, 404);
+  }
+  await next();
+});
+
+app.route("/api/keys_:token", apikeysApi);
 
 // Audit Log Endpoint (admin only)
 app.get("/api/audit", authMiddleware, async (c) => {
