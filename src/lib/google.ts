@@ -1,4 +1,6 @@
 import { google, drive_v3 } from "googleapis";
+import { decrypt } from "./encryption.js";
+import { sanitizeInput } from "./security.js";
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -42,7 +44,9 @@ export function getDriveClient(refreshToken: string): drive_v3.Drive {
     process.env.GOOGLE_CLIENT_SECRET,
   );
 
-  client.setCredentials({ refresh_token: refreshToken });
+  // Decrypt the token if it's encrypted
+  const decryptedToken = decrypt(refreshToken);
+  client.setCredentials({ refresh_token: decryptedToken });
 
   return google.drive({ version: "v3", auth: client });
 }
@@ -56,7 +60,8 @@ export async function getUserInfo(refreshToken: string) {
     process.env.GOOGLE_CLIENT_SECRET,
   );
 
-  client.setCredentials({ refresh_token: refreshToken });
+  const decryptedToken = decrypt(refreshToken);
+  client.setCredentials({ refresh_token: decryptedToken });
 
   const oauth2 = google.oauth2({ version: "v2", auth: client });
   const { data } = await oauth2.userinfo.get();
@@ -121,12 +126,14 @@ export async function listFiles(
   if (options.sharedWithMe) {
     q = "sharedWithMe = true and trashed = false";
   } else if (options.folderId) {
-    q += ` and '${options.folderId}' in parents`;
+    const safeFolderId = sanitizeInput(options.folderId);
+    q += ` and '${safeFolderId}' in parents`;
   } else {
     q += " and 'root' in parents";
   }
   if (options.query) {
-    q += ` and name contains '${options.query}'`;
+    const safeQuery = sanitizeInput(options.query);
+    q += ` and name contains '${safeQuery}'`;
   }
 
   const { data } = await drive.files.list({
@@ -254,7 +261,8 @@ export async function getUploadUrl(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
   );
-  client.setCredentials({ refresh_token: refreshToken });
+  const decryptedToken = decrypt(refreshToken);
+  client.setCredentials({ refresh_token: decryptedToken });
 
   const accessToken = await client.getAccessToken();
 
