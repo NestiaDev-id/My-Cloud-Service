@@ -6,6 +6,10 @@ import {
   getStorageQuota,
 } from "../lib/google.js";
 import { StorageAccount, toDTO } from "../models/Account.js";
+import { createJWT, verifyJWT } from "../lib/auth.js";
+import { encrypt } from "../lib/encryption.js";
+import { audit } from "../models/AuditLog.js";
+import { getActiveRouteToken } from "../lib/heartbeat.js";
 
 const app = new Hono();
 
@@ -50,6 +54,7 @@ app.get("/callback", async (c) => {
     const userInfo = await getUserInfo(tokens.refresh_token);
     const storageQuota = await getStorageQuota(tokens.refresh_token);
     const adminEmail = process.env.ADMIN_EMAIL;
+    const clientIp = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
 
     // --- CHECK IF ADMIN ---
     if (adminEmail && userInfo.email?.toLowerCase() === adminEmail.toLowerCase()) {
@@ -57,14 +62,31 @@ app.get("/callback", async (c) => {
       
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
       
-      // Set a simple admin cookie
+      // Create JWT token instead of static cookie
+      const jwtToken = createJWT({
+        email: userInfo.email,
+        role: "admin",
+      });
+
       c.header(
         "Set-Cookie",
-        `admin_token=active_admin_session; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=${60 * 60 * 24 * 7}`,
+        `admin_token=${jwtToken}; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=${60 * 60 * 24 * 7}`,
       );
+
+      // Audit log
+      await audit("LOGIN_SUCCESS", {
+        actor: userInfo.email,
+        ip: clientIp,
+        details: "Admin login via Google OAuth",
+      });
 
       return c.redirect(`${frontendUrl}/monitoring?login=admin_success`);
     }
+
+    // --- NON-ADMIN: Add as storage account ---
+
+    // Encrypt the refresh token before storing
+    const encryptedToken = encrypt(tokens.refresh_token);
 
     // Check if account already exists
     let account = await StorageAccount.findOne({ email: userInfo.email });
@@ -74,7 +96,7 @@ app.get("/callback", async (c) => {
 
     if (account) {
       // Update existing account
-      account.refreshToken = tokens.refresh_token;
+      account.refreshToken = encryptedToken;
       account.name = displayName;
       account.avatar = userInfo.picture || account.avatar || "";
       account.totalStorage = storageQuota.totalStorage;
@@ -99,7 +121,7 @@ app.get("/callback", async (c) => {
         name: displayName,
         avatar: userInfo.picture || "",
         color: randomColor,
-        refreshToken: tokens.refresh_token,
+        refreshToken: encryptedToken,
         totalStorage: storageQuota.totalStorage,
         usedStorage: storageQuota.usedStorage,
         status: "connected",
@@ -108,6 +130,14 @@ app.get("/callback", async (c) => {
       });
       await account.save();
     }
+
+    // Audit log
+    await audit("ACCOUNT_CONNECTED", {
+      actor: userInfo.email || "unknown",
+      ip: clientIp,
+      target: account._id.toString(),
+      details: `Storage account "${displayName}" connected`,
+    });
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     return c.redirect(`${frontendUrl}/monitoring?connected=true`);
@@ -120,35 +150,68 @@ app.get("/callback", async (c) => {
 
 /**
  * GET /api/auth/me
- * Check current admin status
+ * Check current admin status (now using JWT verification)
  */
 app.get("/me", (c) => {
-  const adminToken = c.req.header("cookie")?.includes("admin_token=active_admin_session");
-  const adminEmail = process.env.ADMIN_EMAIL;
+  const cookie = c.req.header("cookie");
+  const adminTokenMatch = cookie?.match(/admin_token=([^;]+)/);
 
-  if (adminToken) {
-    return c.json({
-      authenticated: true,
-      user: {
-        email: adminEmail,
-        role: "admin",
-      },
-    });
+  if (!adminTokenMatch) {
+    return c.json({ authenticated: false }, 401);
   }
 
-  return c.json({ authenticated: false }, 401);
+  const payload = verifyJWT(adminTokenMatch[1]);
+
+  if (!payload || payload.role !== "admin") {
+    return c.json({ authenticated: false }, 401);
+  }
+
+  return c.json({
+    authenticated: true,
+    user: {
+      email: payload.email,
+      role: "admin",
+    },
+  });
 });
 
 /**
  * POST /api/auth/logout
  * Logout admin
  */
-app.post("/logout", (c) => {
+app.post("/logout", async (c) => {
+  const clientIp = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
+
+  await audit("LOGOUT", { ip: clientIp, details: "Admin logged out" });
+
   c.header(
     "Set-Cookie",
     "admin_token=; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=0",
   );
   return c.json({ success: true });
+});
+
+/**
+ * GET /api/auth/route-token
+ * Handshake endpoint — returns the current dynamic route suffix.
+ * Protected by JWT (only admin can request this).
+ */
+app.get("/route-token", (c) => {
+  // JWT verification is done by authMiddleware registered in index.ts
+  // But since /api/auth is NOT behind authMiddleware, we verify manually here
+  const cookie = c.req.header("cookie");
+  const adminTokenMatch = cookie?.match(/admin_token=([^;]+)/);
+
+  if (!adminTokenMatch) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const payload = verifyJWT(adminTokenMatch[1]);
+  if (!payload || payload.role !== "admin") {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  return c.json({ routeToken: getActiveRouteToken() });
 });
 
 export default app;

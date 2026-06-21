@@ -15,6 +15,8 @@ import {
   invalidateFolderCache,
   invalidateAccountCache,
 } from "../lib/cache.js";
+import { isValidCompositeId } from "../lib/security.js";
+import { audit } from "../models/AuditLog.js";
 
 const app = new Hono();
 
@@ -393,6 +395,9 @@ app.get("/files", async (c) => {
  */
 app.get("/files/:id", async (c) => {
   const compositeId = c.req.param("id");
+  if (!isValidCompositeId(compositeId)) {
+    return c.json({ error: "Invalid file ID format" }, 400);
+  }
   const { accountId, fileId } = parseCompositeId(compositeId);
 
   try {
@@ -475,6 +480,9 @@ app.post("/folders", async (c) => {
  */
 app.patch("/files/:id", async (c) => {
   const compositeId = c.req.param("id");
+  if (!isValidCompositeId(compositeId)) {
+    return c.json({ error: "Invalid file ID format" }, 400);
+  }
   const { accountId, fileId } = parseCompositeId(compositeId);
   const body = await c.req.json();
 
@@ -506,6 +514,9 @@ app.patch("/files/:id", async (c) => {
  */
 app.post("/files/:id/move", async (c) => {
   const compositeId = c.req.param("id");
+  if (!isValidCompositeId(compositeId)) {
+    return c.json({ error: "Invalid file ID format" }, 400);
+  }
   const { accountId, fileId } = parseCompositeId(compositeId);
   const body = await c.req.json();
   const { targetFolderId } = body;
@@ -576,6 +587,9 @@ async function findFileOwnerAccount(callerAccount: any, fileId: string) {
  */
 app.post("/files/:id/trash", async (c) => {
   const compositeId = c.req.param("id");
+  if (!isValidCompositeId(compositeId)) {
+    return c.json({ error: "Invalid file ID format" }, 400);
+  }
   const { accountId, fileId } = parseCompositeId(compositeId);
 
   try {
@@ -592,6 +606,11 @@ app.post("/files/:id/trash", async (c) => {
       throw err;
     }
 
+    await audit("FILE_TRASHED", {
+      ip: c.req.header("x-forwarded-for") || "unknown",
+      target: fileId,
+      details: `Trashed by account ${ownerAccount.email}`,
+    });
     return c.json({ success: true });
   } catch (error: any) {
     console.error("Error trashing file:", error.message);
@@ -607,6 +626,9 @@ app.post("/files/:id/trash", async (c) => {
  */
 app.delete("/files/:id", async (c) => {
   const compositeId = c.req.param("id");
+  if (!isValidCompositeId(compositeId)) {
+    return c.json({ error: "Invalid file ID format" }, 400);
+  }
   const { accountId, fileId } = parseCompositeId(compositeId);
 
   try {
@@ -623,6 +645,11 @@ app.delete("/files/:id", async (c) => {
       throw err;
     }
 
+    await audit("FILE_DELETED", {
+      ip: c.req.header("x-forwarded-for") || "unknown",
+      target: fileId,
+      details: `Permanently deleted by account ${ownerAccount.email}`,
+    });
     return c.json({ success: true });
   } catch (error: any) {
     console.error("Error deleting file:", error.message);

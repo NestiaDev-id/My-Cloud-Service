@@ -3,6 +3,7 @@ import { StorageAccount, toDTO } from "../models/Account.js";
 import { FileCache } from "../models/FileCache.js";
 import { getStorageQuota } from "../lib/google.js";
 import { cache } from "../lib/cache.js";
+import { audit } from "../models/AuditLog.js";
 
 const app = new Hono();
 
@@ -91,6 +92,12 @@ app.delete("/:id", async (c) => {
     account.isActive = false;
     account.status = "disconnected";
     await account.save();
+
+    await audit("ACCOUNT_REMOVED", {
+      ip: c.req.header("x-forwarded-for") || "unknown",
+      target: account.email,
+      details: `Storage account "${account.name}" deactivated`,
+    });
 
     return c.json({ success: true });
   } catch (error) {

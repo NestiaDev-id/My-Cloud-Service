@@ -4,6 +4,10 @@ import { getUploadUrl, getStorageQuota } from "../lib/google.js";
 import { cache, invalidateAccountCache } from "../lib/cache.js";
 import { FileRecord } from "../models/FileRecord.js";
 import { ApiKey, hashApiKey } from "../models/ApiKey.js";
+import { verifyJWT } from "../lib/auth.js";
+import { decrypt } from "../lib/encryption.js";
+import { isBlocked, recordFailedAttempt, clearFailedAttempts, sanitizeFileName, isValidMimeType } from "../lib/security.js";
+import { audit } from "../models/AuditLog.js";
 
 const app = new Hono();
 
@@ -59,7 +63,18 @@ app.post("/init", async (c) => {
   } else {
     // Private mode: Wajib API Key ATAU Sedang Login sebagai Admin
     const apiKeyHeader = c.req.header("X-API-Key");
-    const isAdmin = c.req.header("cookie")?.includes("admin_token=active_admin_session");
+    const clientIp = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
+
+    // Check if IP is blocked from too many failed attempts
+    if (isBlocked(clientIp)) {
+      return c.json({ error: "Too many failed attempts. Try again later." }, 429);
+    }
+
+    // Check JWT-based admin session
+    const cookie = c.req.header("cookie");
+    const adminTokenMatch = cookie?.match(/admin_token=([^;]+)/);
+    const jwtPayload = adminTokenMatch ? verifyJWT(adminTokenMatch[1]) : null;
+    const isAdmin = jwtPayload?.role === "admin";
 
     if (isAdmin) {
       // Admin login → permanen, no TTL
@@ -70,13 +85,19 @@ app.post("/init", async (c) => {
       const apiKeyDoc = await ApiKey.findOne({ keyHash, isActive: true });
 
       if (!apiKeyDoc) {
+        recordFailedAttempt(clientIp);
+        await audit("API_KEY_FAILED", { ip: clientIp, details: "Invalid API Key attempt" });
         return c.json({ error: "Invalid API Key" }, 403);
       }
 
       // Check if key has expired
       if (apiKeyDoc.expiresAt && Date.now() > apiKeyDoc.expiresAt.getTime()) {
+        await audit("API_KEY_EXPIRED", { ip: clientIp, target: apiKeyDoc.name, details: "Expired key used" });
         return c.json({ error: "API Key has expired" }, 403);
       }
+
+      // Clear failed attempts on success
+      clearFailedAttempts(clientIp);
 
       // Update usage tracking
       const now = Date.now();
@@ -97,11 +118,25 @@ app.post("/init", async (c) => {
     }
   }
 
+  // --- Input Sanitization ---
   if (!fileName || !mimeType || !fileSize) {
     return c.json(
       { error: "fileName, mimeType, and fileSize are required" },
       400,
     );
+  }
+
+  const safeName = sanitizeFileName(fileName);
+  if (!safeName) {
+    return c.json({ error: "Invalid file name" }, 400);
+  }
+
+  if (!isValidMimeType(mimeType)) {
+    return c.json({ error: "Invalid MIME type format" }, 400);
+  }
+
+  if (typeof fileSize !== "number" || fileSize <= 0 || fileSize > 10737418240) {
+    return c.json({ error: "File size must be between 1 byte and 10GB" }, 400);
   }
 
   try {

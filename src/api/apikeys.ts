@@ -5,6 +5,8 @@ import {
   calculateExpiry,
   parseDuration,
 } from "../models/ApiKey.js";
+import { audit } from "../models/AuditLog.js";
+import { canGenerateKey } from "../lib/security.js";
 
 const app = new Hono();
 
@@ -70,6 +72,12 @@ app.post("/", async (c) => {
       );
     }
 
+    // Rate limit key generation (max 3 per hour)
+    const clientIp = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "admin";
+    if (!canGenerateKey(clientIp)) {
+      return c.json({ error: "Rate limit: max 3 keys per hour" }, 429);
+    }
+
     const { raw, hash, prefix } = generateApiKey();
     const expiresAt = calculateExpiry(duration);
     const ttlMs = parseDuration(duration);
@@ -83,6 +91,13 @@ app.post("/", async (c) => {
     });
 
     // Return the raw key ONLY ONCE - it cannot be retrieved again
+    await audit("KEY_GENERATED", {
+      actor: "admin",
+      ip: clientIp,
+      target: name,
+      details: `Duration: ${duration}`,
+    });
+
     return c.json({
       success: true,
       key: {
@@ -112,6 +127,12 @@ app.delete("/:id", async (c) => {
     if (!key) {
       return c.json({ error: "API key not found" }, 404);
     }
+
+    await audit("KEY_REVOKED", {
+      actor: "admin",
+      ip: c.req.header("x-forwarded-for") || "unknown",
+      target: key.name,
+    });
 
     return c.json({ success: true, message: `Key "${key.name}" has been revoked.` });
   } catch (error: any) {
