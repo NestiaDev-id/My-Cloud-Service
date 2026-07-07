@@ -85,10 +85,10 @@ app.route("/api/drive", driveApi);
 // Frontend must call GET /api/auth/route-token to discover the current suffix.
 import { isValidRouteToken } from "./lib/heartbeat.js";
 
-app.use("/api/keys_:token", authMiddleware);
-app.use("/api/keys_:token/*", authMiddleware);
+app.use("/api/keys/:token", authMiddleware);
+app.use("/api/keys/:token/*", authMiddleware);
 
-app.all("/api/keys_:token/*", async (c, next) => {
+app.all("/api/keys/:token/*", async (c, next) => {
   const token = c.req.param("token") || "";
   if (!isValidRouteToken(token)) {
     return c.json({ error: "Invalid or expired route token" }, 404);
@@ -96,7 +96,7 @@ app.all("/api/keys_:token/*", async (c, next) => {
   await next();
 });
 
-app.all("/api/keys_:token", async (c, next) => {
+app.all("/api/keys/:token", async (c, next) => {
   const token = c.req.param("token") || "";
   if (!isValidRouteToken(token)) {
     return c.json({ error: "Invalid or expired route token" }, 404);
@@ -104,7 +104,7 @@ app.all("/api/keys_:token", async (c, next) => {
   await next();
 });
 
-app.route("/api/keys_:token", apikeysApi);
+app.route("/api/keys/:token", apikeysApi);
 
 // Audit Log Endpoint (admin only)
 app.get("/api/audit", authMiddleware, async (c) => {

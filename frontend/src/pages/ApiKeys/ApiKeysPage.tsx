@@ -22,7 +22,7 @@ async function getKeysBaseUrl(): Promise<string> {
     const res = await fetch(`${API_URL}/api/auth/route-token`, { credentials: "include" });
     if (res.ok) {
       const data = await res.json();
-      return `${API_URL}/api/keys_${data.routeToken}`;
+      return `${API_URL}/api/keys/${data.routeToken}`;
     }
   } catch (err) {
     console.error("Failed to fetch route token:", err);
