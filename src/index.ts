@@ -31,6 +31,12 @@ app.use(
   }),
 );
 
+// Ensure database is connected before any request (critical for Vercel serverless)
+app.use("*", async (c, next) => {
+  await connectDB();
+  await next();
+});
+
 // Health check & Info
 app.get("/", (c) => {
   return c.json({
@@ -59,8 +65,8 @@ app.get("/health", async (c) => {
   }
 });
 
-// API Documentation (Scalar) — Protected: Admin only
-app.get("/reference", authMiddleware, apiReference({
+// API Documentation (Scalar) — Publicly accessible, content filtered to Upload-only
+app.get("/reference", apiReference({
   // @ts-ignore - Bypass strict type checking for Scalar configuration
   spec: {
     content: openApiSpec
