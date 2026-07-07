@@ -22,7 +22,7 @@ app.get("/", async (c) => {
 
     const result = keys.map((k) => {
       // Reset 24h counter if needed
-      if (now > k.usageTodayResetAt.getTime()) {
+      if (k.usageTodayResetAt && now > k.usageTodayResetAt.getTime()) {
         k.usageToday = 0;
         k.usageTodayResetAt = new Date(now + 24 * 60 * 60 * 1000);
         k.save().catch(() => {}); // Fire-and-forget
